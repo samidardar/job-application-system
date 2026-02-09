@@ -1,0 +1,20 @@
+{
+  "name": "openclaw-skills",
+  "version": "1.0.0",
+  "description": "Skills installer for OpenClaw",
+  "scripts": {
+    "skills:add": "node -e \"const s=process.argv[1]; console.log('Use: clawhub install <skill-name>');\""
+  },
+  "skills": {
+    "job-auto-apply": {
+      "repo": "clawhub/job-auto-apply",
+      "version": "1.0.0",
+      "installed": true
+    },
+    "job-search-mcp-jobspy": {
+      "repo": "clawhub/job-search-mcp-jobspy", 
+      "version": "1.0.3",
+      "installed": true
+    }
+  }
+}
