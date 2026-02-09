@@ -1,7 +1,6 @@
-# Render.com Configuration
 services:
   - type: web
-    name: job-system-dashboard
+    name: job-application-system
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -11,7 +10,3 @@ services:
         value: 3.11.0
       - key: FLASK_ENV
         value: production
-    disk:
-      name: job-data
-      mountPath: /data/.openclaw/workspace
-      sizeGB: 1
