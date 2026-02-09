@@ -1,0 +1,224 @@
+{
+  "_comment": "OpenClaw Configuration with MCP Servers - Generated for Sami",
+  "version": "1.0",
+  "agent": {
+    "name": "Jarvis",
+    "model": "moonshot/kimi-k2.5"
+  },
+  
+  "mcpServers": {
+    "_comment": "MCP (Model Context Protocol) Servers for Extended Capabilities",
+    
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data/.openclaw/workspace"],
+      "description": "Read/write files in workspace"
+    },
+    
+    "sqlite": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "/data/.openclaw/workspace/job_application_system/database/job_application.db"],
+      "description": "Query job application database"
+    },
+    
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://user:pass@localhost/db"],
+      "description": "PostgreSQL database access",
+      "env": {
+        "DATABASE_URL": ""
+      }
+    },
+    
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "description": "Web scraping and browser automation"
+    },
+    
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "description": "Web search via Brave API",
+      "env": {
+        "BRAVE_API_KEY": "YOUR_BRAVE_API_KEY_HERE"
+      }
+    },
+    
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "description": "HTTP requests and API calls"
+    },
+    
+    "git": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git", "/data/.openclaw/workspace"],
+      "description": "Git operations"
+    },
+    
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "description": "GitHub API integration",
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_YOUR_TOKEN_HERE"
+      }
+    },
+    
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "Complex reasoning and step-by-step thinking"
+    },
+    
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "Persistent memory across conversations"
+    },
+    
+    "gdrive": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gdrive"],
+      "description": "Google Drive file access",
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": ""
+      }
+    },
+    
+    "slack": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
+      "description": "Slack messaging and channels",
+      "env": {
+        "SLACK_BOT_TOKEN": "xoxb-YOUR_TOKEN",
+        "SLACK_TEAM_ID": "YOUR_TEAM_ID"
+      }
+    },
+    
+    "gmail": {
+      "command": "npx",
+      "args": ["-y", "@gmail/mcp-server-gmail"],
+      "description": "Gmail read/send emails",
+      "env": {
+        "GMAIL_CREDENTIALS_PATH": "/data/.openclaw/credentials/gmail.json",
+        "GMAIL_TOKEN_PATH": "/data/.openclaw/credentials/gmail-token.json"
+      }
+    },
+    
+    "notion": {
+      "command": "npx",
+      "args": ["-y", "@suekou/mcp-notion-server"],
+      "description": "Notion pages and databases",
+      "env": {
+        "NOTION_API_TOKEN": ""
+      }
+    },
+    
+    "youtube": {
+      "command": "npx",
+      "args": ["-y", "@mcp-servers/youtube-transcript"],
+      "description": "YouTube video transcripts"
+    },
+    
+    "weather": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-weather"],
+      "description": "Weather forecasts and data"
+    },
+    
+    "docker": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-docker"],
+      "description": "Docker container management"
+    },
+    
+    "kubernetes": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-kubernetes"],
+      "description": "K8s cluster operations"
+    },
+    
+    "stripe": {
+      "command": "npx",
+      "args": ["-y", "@stripe/mcp-server-stripe"],
+      "description": "Stripe payments and billing",
+      "env": {
+        "STRIPE_API_KEY": ""
+      }
+    },
+    
+    "aws": {
+      "command": "npx",
+      "args": ["-y", "@awslabs/mcp-server-aws"],
+      "description": "AWS services integration",
+      "env": {
+        "AWS_ACCESS_KEY_ID": "",
+        "AWS_SECRET_ACCESS_KEY": "",
+        "AWS_REGION": "us-east-1"
+      }
+    },
+    
+    "browserbase": {
+      "command": "npx",
+      "args": ["-y", "@browserbase/mcp-server-browserbase"],
+      "description": "Browser automation infrastructure",
+      "env": {
+        "BROWSERBASE_API_KEY": ""
+      }
+    },
+    
+    "twilio": {
+      "command": "npx",
+      "args": ["-y", "@twilio-labs/mcp-server-twilio"],
+      "description": "SMS and voice calls",
+      "env": {
+        "TWILIO_ACCOUNT_SID": "",
+        "TWILIO_AUTH_TOKEN": ""
+      }
+    }
+  },
+  
+  "skills": {
+    "_comment": "OpenClaw/ClawHub Skills",
+    
+    "installed": [
+      "vercel-composition-patterns",
+      "vercel-react-best-practices", 
+      "vercel-react-native-skills",
+      "web-design-guidelines",
+      "job-auto-apply",
+      "job-search-mcp-jobspy"
+    ],
+    
+    "recommended": [
+      "clawhub/healthcheck",
+      "clawhub/weather",
+      "vercel-labs/agent-skills"
+    ]
+  },
+  
+  "tools": {
+    "enabled": [
+      "filesystem",
+      "database",
+      "web_search",
+      "web_fetch",
+      "browser",
+      "exec",
+      "message",
+      "cron"
+    ]
+  },
+  
+  "apiKeys": {
+    "_comment": "Add your API keys here",
+    "brave": "",
+    "openai": "",
+    "anthropic": "",
+    "github": "",
+    "google": "",
+    "stripe": ""
+  }
+}
