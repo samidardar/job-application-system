@@ -1,0 +1,17 @@
+# Render.com Configuration
+services:
+  - type: web
+    name: job-system-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_ENV
+        value: production
+    disk:
+      name: job-data
+      mountPath: /data/.openclaw/workspace
+      sizeGB: 1
