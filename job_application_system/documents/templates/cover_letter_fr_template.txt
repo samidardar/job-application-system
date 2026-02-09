@@ -1,0 +1,25 @@
+{user_name}
+{user_email}
+{user_phone}
+{date}
+
+À l'attention du service Recrutement
+{company_name}
+
+Objet : Candidature pour le poste de {job_title}
+
+Madame, Monsieur,
+
+Étudiant en {current_study}, je suis à la recherche d'une {job_type} pour {period}. Votre offre de {job_title} chez {company_name} a particulièrement retenu mon attention car elle correspond parfaitement à mon projet professionnel et à mes compétences.
+
+{skills_paragraph}
+
+{motivation_paragraph}
+
+{company_paragraph}
+
+Je serais ravi de pouvoir échanger avec vous lors d'un entretien pour vous présenter ma motivation et mes compétences plus en détail. Je reste à votre disposition pour toute information complémentaire.
+
+Dans l'attente de votre retour, je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
+
+{user_name}

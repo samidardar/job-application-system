@@ -1,0 +1,25 @@
+{user_name}
+{user_email}
+{user_phone}
+{date}
+
+Hiring Manager
+{company_name}
+
+Subject: Application for {job_title}
+
+Dear Hiring Manager,
+
+I am writing to express my strong interest in the {job_title} position at {company_name}. As a {current_study} student, I am seeking a {job_type} opportunity for {period}, and this role aligns perfectly with my professional goals and skill set.
+
+{skills_paragraph}
+
+{motivation_paragraph}
+
+{company_paragraph}
+
+I would welcome the opportunity to discuss how my background and skills align with your needs. Thank you for considering my application. I look forward to hearing from you.
+
+Sincerely,
+
+{user_name}

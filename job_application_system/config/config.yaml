@@ -1,0 +1,303 @@
+# Job Application System Configuration
+# Configuration for Sami's Data Science/AI/Quant Job Application System
+
+# ============================================
+# USER PROFILE
+# ============================================
+user:
+  full_name: "Sami"
+  email: "your.email@example.com"  # Update with your email
+  phone: "+33 X XX XX XX XX"  # Update with your phone
+  linkedin_url: "https://linkedin.com/in/yourprofile"
+  github_url: "https://github.com/yourusername"
+  portfolio_url: "https://yourportfolio.com"
+  
+  # Skills - used for job matching
+  skills:
+    technical:
+      - "Python"
+      - "R"
+      - "SQL"
+      - "Machine Learning"
+      - "Deep Learning"
+      - "TensorFlow"
+      - "PyTorch"
+      - "Scikit-learn"
+      - "Pandas"
+      - "NumPy"
+      - "Data Visualization"
+      - "Statistics"
+      - "Quantitative Finance"
+      - "Time Series Analysis"
+      - "NLP"
+      - "Computer Vision"
+      - "Big Data"
+      - "Spark"
+      - "AWS"
+      - "Docker"
+      - "Git"
+      - "MLOps"
+    soft:
+      - "Problem Solving"
+      - "Analytical Thinking"
+      - "Communication"
+      - "Teamwork"
+      - "Adaptability"
+  
+  # Education
+  education:
+    current:
+      degree: "Master en Data Science / Intelligence Artificielle"
+      school: "Your School"
+      year: "2024-2026"
+    previous:
+      degree: "Bachelor en Mathématiques / Informatique"
+      school: "Previous School"
+      year: "2021-2024"
+  
+  # Preferred locations
+  locations:
+    preferred:
+      - "Paris"
+      - "Île-de-France"
+      - "Lyon"
+      - "Bordeaux"
+      - "Remote"
+      - "Hybride"
+    acceptable:
+      - "France"
+      - "Europe"
+  
+  # Preferred role types
+  role_types:
+    - "Alternance"
+    - "Stage"
+    - "Apprentissage"
+    - "VIE"  # Volontariat International
+  
+  # Languages
+  languages:
+    - language: "Français"
+      level: "Natif"
+    - language: "Anglais"
+      level: "Courant"
+    - language: "Arabe"
+      level: "Natif"
+
+# ============================================
+# JOB SEARCH FILTERS
+# ============================================
+search:
+  # Keywords for job matching (title and description)
+  keywords:
+    high_priority:
+      - "data scientist"
+      - "data science"
+      - "machine learning"
+      - "deep learning"
+      - "intelligence artificielle"
+      - "artificial intelligence"
+      - "quant"
+      - "quantitative"
+      - "quantitative analyst"
+      - "quant researcher"
+      - "ML engineer"
+      - "MLOps"
+      - "data engineer"
+      - "NLP"
+      - "computer vision"
+    medium_priority:
+      - "data analyst"
+      - "business intelligence"
+      - "statistique"
+      - "statistics"
+      - "analytics"
+      - "big data"
+      - "ETL"
+      - "data mining"
+    exclude:
+      - "senior"
+      - "5+ years"
+      - "10 years"
+      - "expert confirmé"
+      - "CDI uniquement"  # If looking for alternance only
+  
+  # Minimum relevance score (1-10)
+  min_relevance_score: 6.0
+  
+  # Maximum jobs to analyze per run
+  max_jobs_per_run: 100
+  
+  # Maximum jobs to shortlist per run
+  max_shortlist_per_run: 30
+
+# ============================================
+# PLATFORM SETTINGS
+# ============================================
+platforms:
+  linkedin:
+    enabled: true
+    url: "https://www.linkedin.com/jobs"
+    search_urls:
+      - "https://www.linkedin.com/jobs/search?keywords=data%20science%20alternance&location=France&f_TPR=r86400"
+      - "https://www.linkedin.com/jobs/search?keywords=machine%20learning%20alternance&location=France&f_TPR=r86400"
+      - "https://www.linkedin.com/jobs/search?keywords=quant%20alternance&location=France&f_TPR=r86400"
+    easy_apply_only: false
+    max_jobs_per_session: 50
+    delay_between_requests: [3, 7]  # seconds [min, max]
+  
+  indeed:
+    enabled: true
+    url: "https://fr.indeed.com"
+    search_urls:
+      - "https://fr.indeed.com/jobs?q=data+science+alternance&l=France&fromage=1"
+      - "https://fr.indeed.com/jobs?q=machine+learning+alternance&l=France&fromage=1"
+      - "https://fr.indeed.com/jobs?q=intelligence+artificielle+alternance&l=France&fromage=1"
+    max_jobs_per_session: 50
+    delay_between_requests: [2, 5]
+  
+  welcometothejungle:
+    enabled: true
+    url: "https://www.welcometothejungle.com"
+    search_urls:
+      - "https://www.welcometothejungle.com/fr/jobs?query=data%20science&contract=apprenticeship"
+      - "https://www.welcometothejungle.com/fr/jobs?query=machine%20learning&contract=apprenticeship"
+      - "https://www.welcometothejungle.com/fr/jobs?query=artificial%20intelligence&contract=apprenticeship"
+    max_jobs_per_session: 40
+    delay_between_requests: [4, 8]
+
+# ============================================
+# ANTI-DETECTION SETTINGS
+# ============================================
+anti_detection:
+  # Random delays between actions
+  delay_min: 3  # minimum seconds
+  delay_max: 8  # maximum seconds
+  
+  # Longer delays for critical actions (applying)
+  apply_delay_min: 5
+  apply_delay_max: 12
+  
+  # User agents rotation
+  rotate_user_agent: true
+  
+  # Session management
+  max_requests_per_session: 30
+  session_break_duration: 300  # 5 minutes between sessions
+  
+  # Rate limiting
+  max_applications_per_day: 30
+  max_applications_per_platform_per_day: 15
+  
+  # Human-like behavior
+  random_mouse_movements: true
+  random_scroll: true
+  random_page_stay: [10, 30]  # seconds to stay on page
+
+# ============================================
+# APPLICATION SETTINGS
+# ============================================
+application:
+  # Daily limits
+  daily_limit: 30
+  
+  # Auto-apply settings
+  auto_apply: false  # Set to true to enable automatic applications
+  auto_apply_threshold: 8.0  # Only auto-apply jobs with score >= this
+  
+  # Follow-up settings
+  follow_up_enabled: true
+  follow_up_days: 7
+  max_follow_ups: 2
+  
+  # Document paths
+  cv_path: "documents/cv_sami.pdf"
+  cv_english_path: "documents/cv_sami_en.pdf"
+  
+  # Cover letter settings
+  cover_letter:
+    generate_custom: true
+    template_fr: "documents/templates/cover_letter_fr_template.txt"
+    template_en: "documents/templates/cover_letter_en_template.txt"
+    output_dir: "documents/output"
+    max_length: 4000  # characters
+
+# ============================================
+# COVER LETTER AI SETTINGS
+# ============================================
+cover_letter_ai:
+  # Keywords extraction settings
+  min_keyword_length: 3
+  max_keywords: 15
+  
+  # Personalization settings
+  company_research_enabled: true
+  mention_recent_news: true
+  
+  # Language detection
+  auto_detect_language: true
+  default_language: "fr"
+
+# ============================================
+# NOTIFICATION SETTINGS
+# ============================================
+notifications:
+  enabled: true
+  email: "your.email@example.com"
+  
+  # Notification triggers
+  notify_on:
+    - new_matches  # New high-relevance jobs found
+    - application_sent  # Application successfully sent
+    - response_received  # Company responded
+    - daily_summary  # Daily activity summary
+    - errors  # System errors
+  
+  # Daily summary time
+  daily_summary_time: "18:00"
+
+# ============================================
+# DATABASE SETTINGS
+# ============================================
+database:
+  path: "database/job_application.db"
+  backup_enabled: true
+  backup_interval_days: 7
+
+# ============================================
+# DASHBOARD SETTINGS
+# ============================================
+dashboard:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  refresh_interval: 300  # seconds
+
+# ============================================
+# LOGGING SETTINGS
+# ============================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "logs/system.log"
+  max_file_size: 10485760  # 10MB
+  backup_count: 5
+  log_to_console: true
+
+# ============================================
+# CRON SCHEDULE
+# ============================================
+cron:
+  # Run scraping at 8 AM daily
+  scrape_schedule: "0 8 * * *"
+  
+  # Run analysis at 8:30 AM daily
+  analyze_schedule: "30 8 * * *"
+  
+  # Run applications at 9 AM daily
+  apply_schedule: "0 9 * * *"
+  
+  # Generate daily report at 6 PM daily
+  report_schedule: "0 18 * * *"
+  
+  # Clean old data weekly (Sundays at 2 AM)
+  cleanup_schedule: "0 2 * * 0"
