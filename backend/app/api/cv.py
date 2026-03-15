@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -11,6 +12,31 @@ from app.core.storage import save_file
 
 router = APIRouter(prefix="/cv", tags=["cv"])
 
+# PDF magic bytes: every valid PDF starts with %PDF-
+_PDF_MAGIC = b"%PDF-"
+_MAX_CV_SIZE = 10 * 1024 * 1024  # 10 MB
+# Allowed extensions (defence-in-depth alongside magic byte check)
+_ALLOWED_EXTENSIONS = {".pdf"}
+
+
+def _validate_pdf(filename: str | None, content: bytes) -> None:
+    """Validate file is genuinely a PDF by extension AND magic bytes."""
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    ext = Path(filename).suffix.lower()
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+
+    if len(content) > _MAX_CV_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 10 MB)")
+
+    if len(content) < 5 or content[:5] != _PDF_MAGIC:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file: not a valid PDF (magic bytes mismatch)",
+        )
+
 
 @router.post("/upload")
 async def upload_cv(
@@ -18,18 +44,14 @@ async def upload_cv(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not file.filename or not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
-
     content = await file.read()
-    if len(content) > 10 * 1024 * 1024:  # 10MB limit
-        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    _validate_pdf(file.filename, content)
 
-    # Save original file
+    # Save original file — subdir uses UUID only (safe from path traversal)
     file_path, file_name = await save_file(
         content,
         subdir=f"cvs/{current_user.id}",
-        filename=f"cv_original_{uuid.uuid4()}.pdf"
+        filename=f"cv_original_{uuid.uuid4()}.pdf",
     )
 
     # Parse CV

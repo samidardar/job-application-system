@@ -9,22 +9,42 @@ Session files are stored at: storage/browser_states/{user_id}/{domain_safe}.json
 """
 import logging
 import re
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Base directory for all browser state files
-_STATES_DIR = Path("storage/browser_states")
+# Base directory for all browser state files (resolved absolute path)
+_STATES_DIR = Path("storage/browser_states").resolve()
 
 
 def _domain_safe(domain: str) -> str:
-    """Sanitize domain string for use as a filename."""
-    return re.sub(r"[^a-zA-Z0-9._-]", "_", domain)
+    """Sanitize domain string for use as a filename (allow only safe chars)."""
+    safe = re.sub(r"[^a-zA-Z0-9._-]", "_", domain)
+    # Limit length to prevent filesystem issues
+    return safe[:100]
+
+
+def _validate_user_id(user_id: str) -> str:
+    """Validate user_id is a canonical UUID string to prevent path traversal."""
+    try:
+        return str(uuid.UUID(user_id))
+    except (ValueError, AttributeError):
+        raise ValueError(f"Invalid user_id (must be UUID): {user_id!r}")
 
 
 def state_path(user_id: str, domain: str) -> Path:
-    """Returns the path to the Playwright storage state JSON for this user+domain."""
-    return _STATES_DIR / str(user_id) / f"{_domain_safe(domain)}.json"
+    """Returns the path to the Playwright storage state JSON for this user+domain.
+
+    Validates user_id is a UUID and resolves the path to prevent traversal attacks.
+    """
+    safe_uid = _validate_user_id(user_id)
+    safe_dom = _domain_safe(domain)
+    path = (_STATES_DIR / safe_uid / f"{safe_dom}.json").resolve()
+    # Guard: ensure path stays within _STATES_DIR
+    if not str(path).startswith(str(_STATES_DIR)):
+        raise ValueError(f"Path traversal detected: {path}")
+    return path
 
 
 class BrowserSessionManager:
@@ -101,9 +121,22 @@ class BrowserSessionManager:
     def derive_site_password(user_email: str, domain: str, secret: str) -> str:
         """
         Deterministic password derivation for site registrations.
+        Uses PBKDF2-HMAC-SHA256 with domain+email as salt for stronger derivation.
         Never stored in plaintext — always re-derived from user_email + domain + SECRET_KEY.
-        Format: 10 hex chars capitalized + "!7" → always valid (uppercase, digit, special).
+
+        Output format (16 chars + suffix) always satisfies: uppercase, lowercase, digit, special.
         """
         import hashlib
-        raw = hashlib.sha256(f"{user_email}:{domain}:{secret}".encode()).hexdigest()
-        return f"{raw[:10].capitalize()}!7"
+        # PBKDF2 with domain+email as salt — much stronger than plain SHA256
+        dk = hashlib.pbkdf2_hmac(
+            "sha256",
+            secret.encode(),
+            f"{domain}:{user_email}".encode(),
+            iterations=100_000,
+            dklen=24,
+        )
+        import base64
+        b64 = base64.urlsafe_b64encode(dk).decode().rstrip("=")
+        # Guarantee complexity: first char uppercase, inject digit and special
+        core = b64[:20]
+        return f"{core[0].upper()}{core[1:]}1!A"

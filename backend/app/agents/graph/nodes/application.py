@@ -17,8 +17,10 @@ Full automated flow per job:
 Respects auto_apply_enabled flag. If disabled, marks jobs PENDING for manual review.
 """
 import asyncio
+import ipaddress
 import logging
 import re
+import socket
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -37,6 +39,55 @@ logger = logging.getLogger(__name__)
 
 # Screenshot base directory
 _SCREENSHOT_DIR = Path("storage/screenshots")
+
+# ── SSRF Protection ───────────────────────────────────────────────────────────
+_BLOCKED_DOMAINS = {
+    "localhost", "127.0.0.1", "0.0.0.0", "::1",
+    "metadata.google.internal",  # GCP metadata
+    "169.254.169.254",           # AWS/Azure metadata
+}
+_ALLOWED_SCHEMES = {"http", "https"}
+
+
+def _is_safe_url(url: str) -> tuple[bool, str]:
+    """
+    Returns (True, "") if the URL is safe to navigate to.
+    Returns (False, reason) if it's a potential SSRF vector.
+    Blocks: non-http(s) schemes, private/loopback IPs, metadata endpoints.
+    """
+    if not url:
+        return False, "Empty URL"
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, "Malformed URL"
+
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        return False, f"Disallowed scheme: {parsed.scheme}"
+
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return False, "No hostname"
+
+    if hostname.lower() in _BLOCKED_DOMAINS:
+        return False, f"Blocked hostname: {hostname}"
+
+    # Resolve IP and check for private/loopback ranges
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast:
+            return False, f"Private/internal IP blocked: {hostname}"
+    except ValueError:
+        # It's a domain name — resolve it to check the IP
+        try:
+            ip_str = socket.gethostbyname(hostname)
+            addr = ipaddress.ip_address(ip_str)
+            if addr.is_private or addr.is_loopback or addr.is_link_local:
+                return False, f"Domain resolves to private IP: {hostname} → {ip_str}"
+        except OSError:
+            pass  # DNS failure — allow (will fail at page.goto)
+
+    return True, ""
 
 # Platforms where email apply is preferred (no account needed)
 _EMAIL_ONLY_PLATFORMS = {"lever", "bonne_alternance"}
@@ -171,11 +222,13 @@ async def _fill_application_form(page, analysis, cv_path: str, ldm_path: str) ->
             element = page.locator(selector).first
             count = await element.count()
             if not count:
-                # Try broader selectors as fallback
+                # Try broader selectors as fallback — strip quotes to prevent CSS injection
+                safe_label = re.sub(r"['\"]", "", field.label)[:20]
+                safe_label_lower = re.sub(r"['\"\s]", "", field.label.lower())[:20]
                 for alt in [
-                    f"[placeholder*='{field.label[:10]}']",
-                    f"[aria-label*='{field.label[:10]}']",
-                    f"[name*='{field.label.lower().replace(' ', '')}']",
+                    f"[placeholder*='{safe_label}']",
+                    f"[aria-label*='{safe_label}']",
+                    f"[name*='{safe_label_lower}']",
                 ]:
                     alt_el = page.locator(alt).first
                     if await alt_el.count():
@@ -229,9 +282,11 @@ async def _fill_application_form(page, analysis, cv_path: str, ldm_path: str) ->
     # Click submit/next button
     if analysis.submit_hint:
         try:
+            # Strip quotes to prevent CSS selector injection
+            safe_hint = analysis.submit_hint.replace("'", "").replace('"', "")[:60]
             submit_btn = page.locator(
-                f"button:has-text('{analysis.submit_hint}'), "
-                f"input[value='{analysis.submit_hint}']"
+                f"button:has-text('{safe_hint}'), "
+                f"input[value='{safe_hint}']"
             ).first
             if await submit_btn.count():
                 await submit_btn.click()
@@ -340,6 +395,16 @@ async def _process_one(
             manual_reason="No application URL found",
         )
         return False, app_id, "no_url"
+
+    # SSRF guard: reject internal/private URLs before launching browser
+    safe, ssrf_reason = _is_safe_url(url)
+    if not safe:
+        logger.warning(f"[apply] SSRF blocked for {job.get('company')}: {ssrf_reason}")
+        app_id = await _create_application(
+            job, user_id, submitted=False, method=method,
+            manual_reason=f"URL rejected by security policy: {ssrf_reason}",
+        )
+        return False, app_id, method
 
     # Platform-level overrides
     platform = job.get("platform") or ""
@@ -520,7 +585,7 @@ async def _process_one(
         logger.error(f"[apply] Playwright error for {job.get('company')}: {e}")
         app_id = await _create_application(
             job, user_id, submitted=False, method=method,
-            manual_reason=f"Browser error: {e}",
+            manual_reason="Browser automation error — please apply manually",
             manual_url=url,
         )
         return False, app_id, method
