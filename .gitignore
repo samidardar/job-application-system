@@ -1,20 +1,42 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 .Python
-*.so
-*.egg
 *.egg-info/
 dist/
 build/
-*.log
-.env
+.eggs/
+*.egg
 .venv/
 venv/
-ENV/
-*.db
-*.sqlite
-*.sqlite3
-job_application_system/logs/
-job_application_system/database/*.db
+env/
+
+# Node
+node_modules/
+.next/
+out/
+.nuxt/
+
+# Storage / uploads
+backend/storage/
+
+# Logs
+*.log
+nohup.out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
