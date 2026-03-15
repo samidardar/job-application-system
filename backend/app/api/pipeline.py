@@ -13,22 +13,33 @@ from app.schemas.agent import PipelineRunOut, PipelineTriggerResponse
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
-# In-memory SSE event store per user (pipeline_run_id → list of events)
-_sse_queues: dict[str, asyncio.Queue] = {}
+# SSE channel prefix in Redis
+_SSE_CHANNEL_PREFIX = "postulio:sse:"
+# Maximum concurrent SSE connections per user (prevent resource exhaustion)
+_MAX_SSE_CONNECTIONS = 3
+_sse_connection_counts: dict[str, int] = {}
 
 
-def get_sse_queue(user_id: str) -> asyncio.Queue:
-    if user_id not in _sse_queues:
-        _sse_queues[user_id] = asyncio.Queue(maxsize=100)
-    return _sse_queues[user_id]
+async def _get_redis():
+    """Get an async Redis client. Uses redis.asyncio (bundled with redis package)."""
+    import redis.asyncio as aioredis
+    from app.config import settings
+    return aioredis.from_url(settings.redis_url, decode_responses=True)
 
 
 async def publish_sse_event(user_id: str, event: dict) -> None:
-    queue = get_sse_queue(user_id)
+    """Publish an SSE event to Redis pub/sub channel for this user.
+
+    Works across multiple uvicorn workers: any worker that has a subscriber
+    for this user_id will forward the event to the SSE client.
+    """
     try:
-        queue.put_nowait(event)
-    except asyncio.QueueFull:
-        pass
+        redis = await _get_redis()
+        channel = f"{_SSE_CHANNEL_PREFIX}{user_id}"
+        await redis.publish(channel, json.dumps(event))
+        await redis.aclose()
+    except Exception:
+        pass  # SSE is best-effort; pipeline should not fail if SSE fails
 
 
 @router.post("/trigger", response_model=PipelineTriggerResponse)
@@ -36,10 +47,21 @@ async def trigger_pipeline(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Import here to avoid circular imports
+    # Prevent concurrent pipeline runs for the same user
+    running = await db.execute(
+        select(PipelineRun).where(
+            PipelineRun.user_id == current_user.id,
+            PipelineRun.status.in_([AgentStatusEnum.PENDING, AgentStatusEnum.RUNNING]),
+        )
+    )
+    if running.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail="A pipeline is already running for your account. Wait for it to finish.",
+        )
+
     from worker.tasks.pipeline_tasks import run_daily_pipeline
 
-    # Create pipeline run record
     pipeline_run = PipelineRun(
         user_id=current_user.id,
         triggered_by="manual",
@@ -49,13 +71,11 @@ async def trigger_pipeline(
     await db.commit()
     await db.refresh(pipeline_run)
 
-    # Dispatch Celery task
     task = run_daily_pipeline.delay(
         str(current_user.id),
         str(pipeline_run.id),
     )
 
-    # Update with celery task id
     pipeline_run.celery_task_id = task.id
     await db.commit()
 
@@ -93,7 +113,7 @@ async def get_pipeline_status(
 
 @router.get("/runs", response_model=list[PipelineRunOut])
 async def list_pipeline_runs(
-    limit: int = Query(20, le=100),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -126,21 +146,72 @@ async def get_pipeline_run(
 
 @router.get("/stream")
 async def stream_pipeline(current_user: User = Depends(get_current_user)):
-    """Server-Sent Events endpoint for live pipeline status."""
+    """Server-Sent Events endpoint for live pipeline status.
+
+    Uses Redis pub/sub so events work correctly across multiple uvicorn workers.
+    """
     user_id = str(current_user.id)
-    queue = get_sse_queue(user_id)
+
+    # Limit concurrent SSE connections per user
+    count = _sse_connection_counts.get(user_id, 0)
+    if count >= _MAX_SSE_CONNECTIONS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many open SSE connections. Close existing ones first.",
+        )
 
     async def event_generator():
-        # Send initial connected event
-        yield f"data: {json.dumps({'event': 'connected', 'user_id': user_id})}\n\n"
+        _sse_connection_counts[user_id] = _sse_connection_counts.get(user_id, 0) + 1
+        redis = None
+        pubsub = None
+        try:
+            redis = await _get_redis()
+            pubsub = redis.pubsub()
+            channel = f"{_SSE_CHANNEL_PREFIX}{user_id}"
+            await pubsub.subscribe(channel)
 
-        while True:
-            try:
-                event = await asyncio.wait_for(queue.get(), timeout=30.0)
-                yield f"data: {json.dumps(event)}\n\n"
-            except asyncio.TimeoutError:
-                # Send heartbeat to keep connection alive
-                yield f"data: {json.dumps({'event': 'heartbeat'})}\n\n"
+            yield f"data: {json.dumps({'event': 'connected', 'user_id': user_id})}\n\n"
+
+            # Heartbeat interval (seconds) — keeps connection alive through proxies
+            heartbeat_interval = 25
+            last_heartbeat = asyncio.get_event_loop().time()
+
+            while True:
+                # Non-blocking check for new message
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message and message.get("type") == "message":
+                    yield f"data: {message['data']}\n\n"
+                    # Check if this is a terminal event — close the stream
+                    try:
+                        evt = json.loads(message["data"])
+                        if evt.get("event") in ("pipeline_complete", "pipeline_error"):
+                            break
+                    except Exception:
+                        pass
+
+                # Send heartbeat every 25s
+                now = asyncio.get_event_loop().time()
+                if now - last_heartbeat >= heartbeat_interval:
+                    yield f"data: {json.dumps({'event': 'heartbeat'})}\n\n"
+                    last_heartbeat = now
+
+                await asyncio.sleep(0.1)
+
+        except asyncio.CancelledError:
+            pass  # Client disconnected
+        finally:
+            _sse_connection_counts[user_id] = max(0, _sse_connection_counts.get(user_id, 1) - 1)
+            if pubsub:
+                try:
+                    await pubsub.unsubscribe()
+                    await pubsub.aclose()
+                except Exception:
+                    pass
+            if redis:
+                try:
+                    await redis.aclose()
+                except Exception:
+                    pass
 
     return StreamingResponse(
         event_generator(),

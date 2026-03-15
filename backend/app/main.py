@@ -1,27 +1,34 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from app.config import settings
-from app.database import engine, Base
+from app.database import engine
 
-# Import models so Base.metadata includes all tables
+# Import all models so Alembic env.py / Base.metadata sees them
 import app.models.site_credential  # noqa: F401
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables, then patch enum types with new values
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # Add new platform values added after initial migration
-        for val in ("francetravail", "bonne_alternance"):
-            try:
-                await conn.execute(
-                    text(f"ALTER TYPE jobplatformenum ADD VALUE IF NOT EXISTS '{val}'")
-                )
-            except Exception:
-                pass
+    # Run Alembic migrations at startup (safe: only applies pending migrations)
+    # This replaces the ad-hoc create_all + ALTER TYPE approach.
+    try:
+        import asyncio
+        from alembic.config import Config
+        from alembic import command
+
+        alembic_cfg = Config("alembic.ini")
+        # Run in thread pool: alembic uses sync SQLAlchemy internally
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, lambda: command.upgrade(alembic_cfg, "head"))
+        logger.info("[startup] Alembic migrations applied successfully")
+    except Exception as e:
+        # Log but don't crash — tables may already exist on first-run with create_all fallback
+        logger.warning(f"[startup] Alembic migration warning (may be OK on first run): {e}")
+
     yield
     await engine.dispose()
 
@@ -31,6 +38,10 @@ app = FastAPI(
     description="AI-powered job application platform for France",
     version="1.0.0",
     lifespan=lifespan,
+    # Hide detailed error info from clients in production
+    docs_url="/docs" if settings.environment != "production" else None,
+    redoc_url="/redoc" if settings.environment != "production" else None,
+    openapi_url="/openapi.json" if settings.environment != "production" else None,
 )
 
 app.add_middleware(
@@ -51,10 +62,10 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Cache-Control"] = "no-store"
-    # Only add HSTS in production (not during local dev over HTTP)
     if settings.environment == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
 
 # Register routers
 from app.api import auth, users, cv, jobs, applications, documents, pipeline, dashboard

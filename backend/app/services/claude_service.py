@@ -1,14 +1,25 @@
 """
 LLM service using Anthropic Claude Haiku 4.5 — cheapest Claude model, still very capable.
 Model: claude-haiku-4-5-20251001
+
+Features:
+- Retry with exponential backoff on rate limit / connection errors
+- Structured output with JSON schema validation and Pydantic model coercion
+- Daily token budget guard to prevent runaway costs
+- Uses asyncio.get_running_loop().run_in_executor() (not deprecated get_event_loop)
 """
+import asyncio
 import json
 import logging
 import re
+import time
+from collections import defaultdict
 from typing import Type, TypeVar
+
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import anthropic
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,9 +28,40 @@ T = TypeVar("T", bound=BaseModel)
 
 MODEL = "claude-haiku-4-5-20251001"
 
+# ── Daily token budget guard ──────────────────────────────────────────────────
+# Haiku pricing: $0.08/MTok input, $0.25/MTok output
+# At 20 jobs × 5 calls × ~2000 tokens = 200K tokens/user/day
+# Default daily limit: 5M tokens (≈ $1.25/day across all users)
+_DAILY_TOKEN_LIMIT = int(getattr(settings, "claude_daily_token_limit", 5_000_000))
+_token_usage: dict[str, int] = defaultdict(int)  # {date_str: total_tokens}
+
+
+def _today() -> str:
+    return time.strftime("%Y-%m-%d")
+
+
+def _record_tokens(prompt: int, completion: int) -> None:
+    _token_usage[_today()] += prompt + completion
+
+
+def _check_budget() -> None:
+    used = _token_usage[_today()]
+    if used >= _DAILY_TOKEN_LIMIT:
+        raise RuntimeError(
+            f"Daily Claude token budget exceeded ({used:,}/{_DAILY_TOKEN_LIMIT:,} tokens). "
+            "Increase CLAUDE_DAILY_TOKEN_LIMIT or wait until tomorrow."
+        )
+
+
+# ── Service ───────────────────────────────────────────────────────────────────
 
 class ClaudeService:
     def __init__(self):
+        if not settings.anthropic_api_key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY is not set. "
+                "Add it to your .env file."
+            )
         self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         self.model = MODEL
 
@@ -27,6 +69,7 @@ class ClaudeService:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=30),
         retry=retry_if_exception_type((anthropic.RateLimitError, anthropic.APIConnectionError)),
+        reraise=True,
     )
     async def complete(
         self,
@@ -39,6 +82,8 @@ class ClaudeService:
         Call Claude Haiku and return (parsed_response, prompt_tokens, completion_tokens).
         If output_schema is provided, validates and returns a Pydantic model instance.
         """
+        _check_budget()
+
         if output_schema:
             schema_json = json.dumps(output_schema.model_json_schema(), indent=2)
             system_prompt = (
@@ -50,9 +95,10 @@ class ClaudeService:
         else:
             system_prompt = system
 
-        # Use sync client in thread pool to avoid blocking (Anthropic SDK is sync)
-        import asyncio
-        response = await asyncio.get_event_loop().run_in_executor(
+        # Run the sync Anthropic client in a thread pool executor.
+        # Use get_running_loop() — get_event_loop() is deprecated in Python 3.10+.
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
             None,
             lambda: self.client.messages.create(
                 model=self.model,
@@ -64,6 +110,8 @@ class ClaudeService:
 
         prompt_tokens = response.usage.input_tokens
         completion_tokens = response.usage.output_tokens
+        _record_tokens(prompt_tokens, completion_tokens)
+
         raw_text = response.content[0].text
 
         if output_schema:
@@ -82,7 +130,7 @@ class ClaudeService:
             if match:
                 clean = match.group(1).strip()
 
-        # Find first { ... } block in case there's preamble
+        # Find first { ... } block in case there is preamble
         brace_match = re.search(r"\{[\s\S]*\}", clean)
         if brace_match:
             clean = brace_match.group(0)
@@ -113,7 +161,7 @@ class ClaudeService:
         return result, pt, ct  # type: ignore[return-value]
 
 
-# Singleton
+# Singleton — one instance per worker process
 _service_instance: ClaudeService | None = None
 
 

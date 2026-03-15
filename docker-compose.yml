@@ -3,99 +3,158 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: postulio
       POSTGRES_USER: postulio
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postulio_dev_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # PRODUCTION: remove or restrict the port binding below (only expose internally)
+    # Never expose 5432 publicly — comment out in production behind a firewall
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postulio"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
+    # Bind to loopback only — not exposed to public internet
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save 60 1
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 300M
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postulio:${POSTGRES_PASSWORD:-postulio_dev_password}@postgres:5432/postulio
       - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      # PRODUCTION: do NOT bind-mount source code. Remove this volume mount.
+      # Use: COPY . . in Dockerfile instead (already done).
+      # The line below is for local development only:
+      # - ./backend:/app
       - storage_data:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # PRODUCTION: no --reload flag. Workers > 1 for concurrency.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postulio:${POSTGRES_PASSWORD:-postulio_dev_password}@postgres:5432/postulio
       - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
     volumes:
-      - ./backend:/app
       - storage_data:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
+    # concurrency=2: Playwright is memory-heavy; keep low per worker, scale horizontally
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
+    healthcheck:
+      test: ["CMD", "celery", "-A", "worker.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
   beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postulio:${POSTGRES_PASSWORD:-postulio_dev_password}@postgres:5432/postulio
       - REDIS_URL=redis://redis:6379/0
-    volumes:
-      - ./backend:/app
+      - ENVIRONMENT=${ENVIRONMENT:-production}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A worker.celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    # IMPORTANT: Only ever run ONE beat container. Multiple beat instances = duplicate tasks.
+    command: celery -A worker.celery_app beat --loglevel=info --scheduler redbeat.RedBeatScheduler
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+    # PRODUCTION: no source bind mounts
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
 volumes:
   postgres_data:

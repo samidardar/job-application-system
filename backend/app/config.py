@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     default_daily_application_limit: int = 20
     pipeline_hour_utc: int = 7  # 8h00 Paris = 7h00 UTC
 
+    # Cost control — max Claude tokens per day across all users
+    # Haiku: ~$0.08/MTok input, $0.25/MTok output
+    # 5M tokens ≈ $1.25/day. Raise in production as needed.
+    claude_daily_token_limit: int = 5_000_000
+
 
 @lru_cache
 def get_settings() -> Settings:
