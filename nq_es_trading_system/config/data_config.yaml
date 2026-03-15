@@ -1,0 +1,40 @@
+symbols:
+  - "NQ1!"
+  - "ES1!"
+
+symbol_map:
+  "NQ1!": "NQ"
+  "ES1!": "ES"
+
+session_start: "09:30"
+session_end: "16:15"
+session_timezone: "America/New_York"
+bar_timeframe: "5Min"
+bar_timeframe_minutes: 5
+train_years: 3
+tick_history_months: 6
+news_history_years: 2
+
+alpaca:
+  base_url_paper: "https://paper-api.alpaca.markets"
+  base_url_live: "https://api.alpaca.markets"
+  data_url: "https://data.alpaca.markets"
+  # Keys loaded from env: ALPACA_API_KEY, ALPACA_SECRET_KEY
+
+finbert_model: "ProsusAI/finbert"
+
+data_paths:
+  raw_ohlcv: "data/raw/ohlcv"
+  raw_ticks: "data/raw/ticks"
+  raw_news: "data/raw/news"
+  raw_vix: "data/raw/vix"
+  processed: "data/processed"
+  labels: "data/labels"
+
+missing_data:
+  max_forward_fill_bars: 3     # Drop session if more consecutive NaN
+  max_nan_pct_per_feature: 0.30
+
+vix:
+  ticker: "^VIX"
+  source: "yfinance"

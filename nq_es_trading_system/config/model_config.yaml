@@ -1,0 +1,62 @@
+regime_classifier:
+  n_trials_optuna: 50
+  min_regime_probability: 0.60
+  lookback_bars: 30
+  regime_labels:
+    mean_rev_atr_ratio_max: 0.80
+    mean_rev_vwap_zscore_min: 1.50
+    mean_rev_rvol_min: 0.80
+    momentum_rvol_min: 1.50
+    momentum_cvd_divergence_required: false
+  hyperparams_search:
+    num_leaves: [31, 63, 127]
+    learning_rate: [0.01, 0.05, 0.1]
+    max_depth: [4, 6, 8]
+    n_estimators: [100, 300, 500]
+    min_child_samples: [20, 50, 100]
+    subsample: [0.7, 0.8, 1.0]
+    colsample_bytree: [0.7, 0.8, 1.0]
+
+signal_model:
+  sequence_length: 20
+  temporal_features: 8
+  orderflow_features: 7
+  volatility_features: 6
+  news_features: 5
+  tcn_channels: [32, 64, 128]
+  tcn_kernel_size: 3
+  tcn_dropout: 0.20
+  attention_heads: 4
+  attention_embed_dim: 240
+  hidden_dim: 128
+  output_dim: 3
+  dropout: 0.30
+  epochs: 100
+  early_stopping_patience: 15
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  batch_size: 256
+  num_workers: 4
+  pin_memory: true
+  use_amp: true                # BF16 autocast for RTX 5070
+  amp_dtype: "bfloat16"        # Blackwell native BF16
+  use_compile: true            # torch.compile for RTX 5070 speedup
+  compile_mode: "max-autotune"
+
+triple_barrier:
+  atr_multiplier_tp: 1.5
+  atr_multiplier_sl: 0.75
+  time_bars: 6
+
+walk_forward:
+  n_folds: 5
+  initial_train_months: 18
+  test_months: 3
+  min_fold_sharpe: 0.80
+
+finbert:
+  model_name: "ProsusAI/finbert"
+  batch_size: 64
+  max_length: 512
+  device: "cuda"
+  dtype: "float16"             # FP16 for FinBERT inference on RTX 5070

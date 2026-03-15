@@ -1,0 +1,60 @@
+# ============================================================
+# NQ/ES Deep Learning Trading System — Requirements
+# RTX 5070 (Blackwell, CUDA 12.6+) optimized
+# Python 3.11+
+# ============================================================
+
+# --- PyTorch (CUDA 12.6 for RTX 5070 / Blackwell) ---
+# Install via: pip install torch==2.5.1+cu126 torchvision==0.20.1+cu126 --index-url https://download.pytorch.org/whl/cu126
+torch==2.5.1
+torchvision==0.20.1
+
+# --- ML Core ---
+lightgbm==4.5.0
+optuna==3.6.1
+scikit-learn==1.5.2
+shap==0.46.0
+
+# --- NLP / FinBERT ---
+transformers==4.46.0
+sentencepiece==0.2.0
+accelerate==1.1.1
+
+# --- Data ---
+pandas==2.2.3
+numpy==1.26.4
+pyarrow==18.0.0
+fastparquet==2024.11.0
+yfinance==0.2.44
+
+# --- Alpaca ---
+alpaca-py==0.33.0
+
+# --- Visualization ---
+streamlit==1.39.0
+plotly==5.24.1
+matplotlib==3.9.2
+seaborn==0.13.2
+
+# --- Training Utilities ---
+joblib==1.4.2
+tqdm==4.67.0
+
+# --- Config & Logging ---
+pyyaml==6.0.2
+structlog==24.4.0
+
+# --- Scheduling & Async ---
+apscheduler==3.10.4
+pytz==2024.2
+
+# --- Execution ---
+websocket-client==1.8.0
+
+# --- Testing ---
+pytest==8.3.3
+pytest-cov==6.0.0
+
+# --- Utilities ---
+pathlib2==2.3.7; python_version < "3.11"
+python-dotenv==1.0.1

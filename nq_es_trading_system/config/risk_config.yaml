@@ -1,0 +1,41 @@
+account_size: 50000
+daily_loss_limit: 500
+max_drawdown_pct: 0.05
+max_drawdown_abs: 2500
+max_contracts_per_instrument: 2
+max_simultaneous_positions: 2
+max_trades_per_day: 8
+session_end_cutoff: "15:45"
+session_start: "09:30"
+news_blackout_pre_min: 5
+news_blackout_post_min: 10
+kelly_fraction: 0.25
+kelly_min_trades: 20           # Minimum trades before Kelly calc is trusted
+
+sizing:
+  base_contracts: 1
+  high_confidence_threshold: 0.75
+  high_rvol_threshold: 1.20
+  high_confidence_contracts: 2
+  vol_regimes_reduce: ["high", "extreme"]
+
+slippage_ticks:
+  NQ: 1
+  ES: 1
+
+commission_per_rt: 4.50        # AMP Futures pricing
+
+tick_value:
+  NQ: 5.00
+  ES: 12.50
+
+tick_size:
+  NQ: 0.25
+  ES: 0.25
+
+circuit_breakers:
+  daily_loss_hard_stop: true
+  drawdown_hard_stop: true
+  max_trades_hard_stop: true
+  time_filter_hard_stop: true
+  macro_blackout_hard_stop: true
