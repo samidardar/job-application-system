@@ -1,6 +1,7 @@
 import uuid
 import asyncio
 import json
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +59,21 @@ async def trigger_pipeline(
         raise HTTPException(
             status_code=409,
             detail="A pipeline is already running for your account. Wait for it to finish.",
+        )
+
+    # Rate-limit manual triggers: 1 per hour to prevent accidental spam
+    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    recent = await db.execute(
+        select(PipelineRun).where(
+            PipelineRun.user_id == current_user.id,
+            PipelineRun.triggered_by == "manual",
+            PipelineRun.started_at >= one_hour_ago,
+        ).limit(1)
+    )
+    if recent.scalar_one_or_none():
+        raise HTTPException(
+            status_code=429,
+            detail="Un déclenchement manuel par heure maximum. Le pipeline tourne aussi automatiquement à 8h00.",
         )
 
     from worker.tasks.pipeline_tasks import run_daily_pipeline
