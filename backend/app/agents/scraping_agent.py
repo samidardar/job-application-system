@@ -1,6 +1,5 @@
 import logging
 import uuid
-from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jobspy import scrape_jobs
@@ -103,7 +102,6 @@ class ScrapingAgent(BaseAgent):
                 return []
 
             new_job_ids = []
-            cutoff = datetime.utcnow() - timedelta(hours=25)
 
             for _, row in jobs_df.iterrows():
                 try:

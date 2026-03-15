@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database import get_db, AsyncSessionLocal
+from app.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.agent_run import PipelineRun, AgentStatusEnum

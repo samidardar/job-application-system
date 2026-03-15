@@ -5,10 +5,9 @@ asyncpg==0.29.0
 alembic==1.13.1
 pydantic[email]==2.6.4
 pydantic-settings==2.2.1
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+bcrypt>=4.0.0
 python-multipart==0.0.9
-anthropic==0.28.0
+anthropic>=0.40.0
 celery[redis]==5.3.6
 redis==5.0.3
 jobspy2==1.1.3

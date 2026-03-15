@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     algorithm: str = "HS256"
 
-    # Anthropic
+    # Anthropic — Claude Haiku 4.5 (cheapest, ~$0.08/MTok input)
     anthropic_api_key: str = ""
 
     # Email (optional)

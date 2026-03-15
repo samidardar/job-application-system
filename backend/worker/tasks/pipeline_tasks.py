@@ -14,7 +14,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
-from celery import shared_task, group, chord
+from celery import shared_task
 from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
@@ -220,10 +220,6 @@ async def _process_followups_async():
 @shared_task(name="worker.tasks.pipeline_tasks.trigger_user_pipeline")
 def trigger_user_pipeline(user_id: str):
     """Triggered by Celery Beat for scheduled daily runs."""
-    import asyncio
-    from app.database import AsyncSessionLocal
-    from app.models.agent_run import PipelineRun, AgentStatusEnum
-
     async def create_and_run():
         async with AsyncSessionLocal() as db:
             uid = uuid.UUID(user_id)
