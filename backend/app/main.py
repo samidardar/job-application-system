@@ -1,17 +1,25 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.config import settings
 from app.database import engine, Base
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables if not exist (migrations handle this in prod)
+    # Startup: create tables, then patch enum types with new values
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Add new platform values added after initial migration
+        for val in ("francetravail", "bonne_alternance"):
+            try:
+                await conn.execute(
+                    text(f"ALTER TYPE jobplatformenum ADD VALUE IF NOT EXISTS '{val}'")
+                )
+            except Exception:
+                pass
     yield
-    # Shutdown
     await engine.dispose()
 
 

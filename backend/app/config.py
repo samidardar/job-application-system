@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # Anthropic — Claude Haiku 4.5 (cheapest, ~$0.08/MTok input)
     anthropic_api_key: str = ""
 
+    # France Travail API (ex Pôle Emploi) — https://francetravail.io/data/api
+    france_travail_client_id: str = ""
+    france_travail_client_secret: str = ""
+
     # Email (optional)
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587

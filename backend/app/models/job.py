@@ -17,6 +17,8 @@ class JobPlatformEnum(str, Enum):
     LINKEDIN = "linkedin"
     INDEED = "indeed"
     WTTJ = "welcometothejungle"
+    FRANCE_TRAVAIL = "francetravail"
+    BONNE_ALTERNANCE = "bonne_alternance"
 
 
 class JobTypeEnum(str, Enum):
