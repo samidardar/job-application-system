@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.job import Job
     from app.models.application import Application
     from app.models.agent_run import PipelineRun
+    from app.models.site_credential import SiteCredential
 
 
 class User(Base):
@@ -31,6 +32,7 @@ class User(Base):
     jobs: Mapped[list["Job"]] = relationship("Job", back_populates="user", cascade="all, delete-orphan")
     applications: Mapped[list["Application"]] = relationship("Application", back_populates="user", cascade="all, delete-orphan")
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship("PipelineRun", back_populates="user", cascade="all, delete-orphan")
+    site_credentials: Mapped[list["SiteCredential"]] = relationship("SiteCredential", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def full_name(self) -> str:

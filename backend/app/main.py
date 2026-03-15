@@ -5,6 +5,9 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import engine, Base
 
+# Import models so Base.metadata includes all tables
+import app.models.site_credential  # noqa: F401
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

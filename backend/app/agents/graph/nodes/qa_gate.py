@@ -164,7 +164,7 @@ pour corriger les problèmes (si grade < A). Exemple: "Paragraphe 2: remplacer '
         )
 
 
-async def _retry_documents(job: JobDict) -> JobDict | None:
+async def _retry_documents(job: JobDict, user_id_str: str) -> JobDict | None:
     """Re-generate documents with QA feedback."""
     try:
         from app.agents.graph.nodes.generate_docs import (
@@ -174,7 +174,7 @@ async def _retry_documents(job: JobDict) -> JobDict | None:
         from app.models.user import UserProfile, User
         from sqlalchemy import select
 
-        user_id = uuid.UUID(job.get("user_id_hint", job.get("id", "")[:36]))
+        user_id = uuid.UUID(user_id_str)
         async with AsyncSessionLocal() as db:
             profile_result = await db.execute(
                 select(UserProfile).where(UserProfile.user_id == user_id)
@@ -213,7 +213,7 @@ async def _retry_documents(job: JobDict) -> JobDict | None:
         return None
 
 
-async def _qa_one(job: JobDict) -> JobDict:
+async def _qa_one(job: JobDict, user_id_str: str) -> JobDict:
     """Grade one job's documents, retry once if needed."""
     qa = await _grade_documents(job)
     logger.info(
@@ -241,10 +241,9 @@ async def _qa_one(job: JobDict) -> JobDict:
     # Retry once with feedback
     logger.info(f"[qa] Retry pour {job.get('company')}: {qa.retry_instructions[:100]}")
     enriched["retry_count"] = 1
-    # Inject feedback into the job so generate_docs can pick it up
     enriched["qa_retry_feedback"] = qa.retry_instructions
 
-    retried = await _retry_documents(enriched)  # type: ignore
+    retried = await _retry_documents(enriched, user_id_str)  # type: ignore
     if retried:
         qa2 = await _grade_documents(retried)
         retried["qa_grade"] = qa2.grade
@@ -261,6 +260,7 @@ async def node_qa_gate(state: PipelineState) -> dict:
     """Grade all generated document pairs and filter ready jobs."""
     matched = state.get("matched_jobs", [])
     jobs_with_docs = [j for j in matched if j.get("cv_doc_id")]
+    user_id_str = state.get("user_id", "")
 
     if not jobs_with_docs:
         return {"jobs_ready": [], "errors": []}
@@ -271,7 +271,7 @@ async def node_qa_gate(state: PipelineState) -> dict:
 
     async def qa_with_sem(job: JobDict) -> JobDict:
         async with semaphore:
-            return await _qa_one(job)
+            return await _qa_one(job, user_id_str)
 
     results = await asyncio.gather(
         *[qa_with_sem(j) for j in jobs_with_docs],
