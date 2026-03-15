@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Required for the multi-stage Docker production build (standalone output)
+  output: "standalone",
   async rewrites() {
     return [
       {

@@ -1,9 +1,11 @@
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.config import settings
-from app.database import engine
+from app.database import engine, AsyncSessionLocal
 
 # Import all models so Alembic env.py / Base.metadata sees them
 import app.models.site_credential  # noqa: F401
@@ -14,31 +16,30 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Run Alembic migrations at startup (safe: only applies pending migrations)
-    # This replaces the ad-hoc create_all + ALTER TYPE approach.
     try:
         import asyncio
         from alembic.config import Config
         from alembic import command
 
         alembic_cfg = Config("alembic.ini")
-        # Run in thread pool: alembic uses sync SQLAlchemy internally
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, lambda: command.upgrade(alembic_cfg, "head"))
         logger.info("[startup] Alembic migrations applied successfully")
     except Exception as e:
-        # Log but don't crash — tables may already exist on first-run with create_all fallback
-        logger.warning(f"[startup] Alembic migration warning (may be OK on first run): {e}")
+        logger.warning(f"[startup] Alembic migration warning: {e}")
 
     yield
     await engine.dispose()
 
+
+# ── CORS ─────────────────────────────────────────────────────────────────────
+_allowed_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
 
 app = FastAPI(
     title="Postulio API",
     description="AI-powered job application platform for France",
     version="1.0.0",
     lifespan=lifespan,
-    # Hide detailed error info from clients in production
     docs_url="/docs" if settings.environment != "production" else None,
     redoc_url="/redoc" if settings.environment != "production" else None,
     openapi_url="/openapi.json" if settings.environment != "production" else None,
@@ -46,13 +47,24 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://frontend:3000"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With", "X-Request-ID"],
 )
 
 
+# ── Request-ID middleware ─────────────────────────────────────────────────────
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    response: Response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+# ── Security headers middleware ───────────────────────────────────────────────
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     response: Response = await call_next(request)
@@ -80,6 +92,30 @@ app.include_router(pipeline.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 
 
-@app.get("/health")
+# ── Health endpoints ─────────────────────────────────────────────────────────
+@app.get("/health/live", tags=["health"])
+async def liveness():
+    """Liveness probe — is the process alive?"""
+    return {"status": "ok", "app": "Postulio"}
+
+
+@app.get("/health/ready", tags=["health"])
+async def readiness():
+    """Readiness probe — can we serve traffic? (checks DB connection)"""
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+        return {"status": "ready", "db": "ok"}
+    except Exception as e:
+        logger.error(f"[readiness] DB check failed: {e}")
+        return Response(
+            content='{"status":"not ready","db":"error"}',
+            status_code=503,
+            media_type="application/json",
+        )
+
+
+# Legacy liveness alias
+@app.get("/health", include_in_schema=False)
 async def health():
     return {"status": "ok", "app": "Postulio"}

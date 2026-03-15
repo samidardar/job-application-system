@@ -152,9 +152,13 @@ async def _run_pipeline_async(user_id: str, pipeline_run_id: str):
     }
 
     # ── Run LangGraph ─────────────────────────────────────────────────────────
+    _PIPELINE_TIMEOUT = 30 * 60  # 30 minutes hard cap (Celery soft limit also set)
     try:
         logger.info(f"[Pipeline {run_id}] Starting LangGraph for {user.email}")
-        final_state = await pipeline.ainvoke(initial_state)
+        final_state = await asyncio.wait_for(
+            pipeline.ainvoke(initial_state),
+            timeout=_PIPELINE_TIMEOUT,
+        )
 
         logger.info(
             f"[Pipeline {run_id}] Completed: "
@@ -164,6 +168,21 @@ async def _run_pipeline_async(user_id: str, pipeline_run_id: str):
             f"submitted={final_state.get('applications_submitted')} "
             f"errors={len(final_state.get('errors', []))}"
         )
+    except asyncio.TimeoutError:
+        logger.error(f"[Pipeline {run_id}] Pipeline timed out after {_PIPELINE_TIMEOUT}s")
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(PipelineRun).where(PipelineRun.id == run_id))
+            run = result.scalar_one_or_none()
+            if run:
+                run.status = AgentStatusEnum.FAILED
+                run.completed_at = datetime.utcnow()
+                await db.commit()
+        try:
+            from app.api.pipeline import publish_sse_event
+            await publish_sse_event(user_id, {"event": "pipeline_error", "message": "Pipeline timed out after 30 minutes"})
+        except Exception:
+            pass
+        return
     except Exception as e:
         logger.error(f"[Pipeline {run_id}] LangGraph error: {e}", exc_info=True)
         async with AsyncSessionLocal() as db:

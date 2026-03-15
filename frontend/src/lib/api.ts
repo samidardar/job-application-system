@@ -5,6 +5,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export const api = axios.create({
   baseURL: `${API_BASE}/api/v1`,
   headers: { "Content-Type": "application/json" },
+  timeout: 30_000, // 30s — prevents frozen UI if backend is slow/unresponsive
 });
 
 // Attach JWT token to every request
@@ -18,27 +19,61 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Auto-refresh on 401
+// Auto-refresh on 401 — with loop protection
+let _isRefreshing = false;
+let _refreshRetryCount = 0;
+const _MAX_REFRESH_RETRIES = 1;
+
 api.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    _refreshRetryCount = 0; // Reset on any successful response
+    return r;
+  },
   async (error) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
+    const status = error.response?.status;
+
+    // Only attempt refresh once per 401, never for the refresh endpoint itself
+    if (
+      status === 401 &&
+      typeof window !== "undefined" &&
+      !_isRefreshing &&
+      _refreshRetryCount < _MAX_REFRESH_RETRIES &&
+      !error.config?.url?.includes("/auth/refresh")
+    ) {
       const refresh = localStorage.getItem("refresh_token");
       if (refresh) {
+        _isRefreshing = true;
+        _refreshRetryCount++;
         try {
-          const res = await axios.post(`${API_BASE}/api/v1/auth/refresh`, {
-            refresh_token: refresh,
-          });
+          const res = await axios.post(
+            `${API_BASE}/api/v1/auth/refresh`,
+            { refresh_token: refresh },
+            { timeout: 10_000 },
+          );
           localStorage.setItem("access_token", res.data.access_token);
           localStorage.setItem("refresh_token", res.data.refresh_token);
           error.config.headers.Authorization = `Bearer ${res.data.access_token}`;
+          _isRefreshing = false;
           return api.request(error.config);
         } catch {
-          localStorage.clear();
+          // Refresh failed — clear session and redirect to login
+          _isRefreshing = false;
+          _refreshRetryCount = 0;
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
           window.location.href = "/login";
+          return Promise.reject(error);
         }
       }
     }
+
+    // Not a 401, or refresh already failed — propagate error
+    if (status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      window.location.href = "/login";
+    }
+
     return Promise.reject(error);
   }
 );
@@ -67,6 +102,7 @@ export const cvApi = {
     form.append("file", file);
     return api.post("/cv/upload", form, {
       headers: { "Content-Type": "multipart/form-data" },
+      timeout: 60_000, // CV parsing can take longer
     });
   },
   getParsed: () => api.get("/cv/parsed"),

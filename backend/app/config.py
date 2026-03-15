@@ -42,6 +42,21 @@ class Settings(BaseSettings):
     # Anthropic — Claude Haiku 4.5 (cheapest, ~$0.08/MTok input)
     anthropic_api_key: str = ""
 
+    @field_validator("anthropic_api_key")
+    @classmethod
+    def anthropic_key_required_in_production(cls, v: str) -> str:
+        # Fail fast: don't let pipelines run for hours before hitting a missing key
+        import os
+        env = os.environ.get("ENVIRONMENT", "development")
+        if not v and env == "production":
+            print("FATAL: ANTHROPIC_API_KEY is required in production", file=sys.stderr)
+            raise ValueError("ANTHROPIC_API_KEY must be set in production")
+        return v
+
+    # CORS — comma-separated list of allowed origins
+    # Default allows local dev. In production set: ALLOWED_ORIGINS=https://yourdomain.com
+    allowed_origins: str = "http://localhost:3000,http://frontend:3000"
+
     # France Travail API (ex Pôle Emploi) — https://francetravail.io/data/api
     france_travail_client_id: str = ""
     france_travail_client_secret: str = ""

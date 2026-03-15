@@ -37,8 +37,8 @@ from app.services.browser_session import BrowserSessionManager
 
 logger = logging.getLogger(__name__)
 
-# Screenshot base directory
-_SCREENSHOT_DIR = Path("storage/screenshots")
+# Screenshot base directory — absolute path derived from settings to work inside Docker
+_SCREENSHOT_DIR = Path(settings.storage_path) / "screenshots"
 
 # ── SSRF Protection ───────────────────────────────────────────────────────────
 _BLOCKED_DOMAINS = {
@@ -190,10 +190,16 @@ async def _send_lever_email(job: JobDict, user_info: dict, cv_path: str, ldm_pat
         if not smtp_user:
             return False, "smtp_not_configured"
 
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, contact_email, msg.as_string())
+        # Run blocking SMTP in thread executor — must not block the async event loop
+        raw_msg = msg.as_string()
+        def _send():
+            with smtplib.SMTP(smtp_host, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(smtp_user, contact_email, raw_msg)
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _send)
 
         logger.info(f"[apply] Email envoyé à {contact_email} pour {job.get('company')}")
         return True, "email_sent"
