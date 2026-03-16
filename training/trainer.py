@@ -1,11 +1,13 @@
 """
 PyTorch training loop for the SignalModel.
 
-RTX 5070 (Blackwell) optimizations:
-    - BF16 autocast via torch.amp.autocast(dtype=torch.bfloat16)
-    - torch.compile(model, mode='max-autotune') for ~20% speedup
-    - pin_memory=True + num_workers=4 for fast DataLoader
-    - Gradient clipping (max_norm=1.0) for stability
+GTX 1650 (Turing, 4GB VRAM) optimizations:
+    - FP16 autocast via torch.amp.autocast(dtype=torch.float16)
+    - torch.compile DISABLED (Turing doesn't benefit, adds compile overhead)
+    - Batch size 64 (fits in 4GB VRAM with model + gradients)
+    - pin_memory=True + num_workers=2 for DataLoader
+    - Gradient clipping (max_norm=1.0) for FP16 stability
+    - GradScaler for FP16 loss scaling (required on Turing)
 """
 
 from pathlib import Path
@@ -115,18 +117,18 @@ class SignalModelTrainer:
         model: SignalModel,
         device: str = None,
         use_amp: bool = True,
-        amp_dtype: str = "bfloat16",
-        use_compile: bool = True,
-        compile_mode: str = "max-autotune",
+        amp_dtype: str = "float16",
+        use_compile: bool = False,
+        compile_mode: str = "default",
     ):
         """
         Args:
             model: SignalModel instance
             device: 'cuda', 'cpu', or None (auto-detect)
-            use_amp: Enable automatic mixed precision (BF16 for Blackwell)
-            amp_dtype: 'bfloat16' (RTX 5070) or 'float16'
-            use_compile: Enable torch.compile() (requires PyTorch 2.0+)
-            compile_mode: torch.compile mode ('max-autotune' for RTX 5070)
+            use_amp: Enable automatic mixed precision (FP16 for Turing/GTX 1650)
+            amp_dtype: 'float16' (GTX 1650 Turing) — bfloat16 NOT supported
+            use_compile: torch.compile disabled for Turing (no benefit, adds overhead)
+            compile_mode: Not used when compile is disabled
         """
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -134,7 +136,11 @@ class SignalModelTrainer:
 
         self.model = model.to(device)
         self.use_amp = use_amp and device == "cuda"
-        self.amp_dtype = torch.bfloat16 if amp_dtype == "bfloat16" else torch.float16
+        # GTX 1650 (Turing) only supports FP16, NOT bfloat16
+        self.amp_dtype = torch.float16
+
+        # GradScaler required for FP16 training on Turing (prevents underflow)
+        self._scaler = torch.amp.GradScaler("cuda") if self.use_amp else None
 
         if use_compile and device == "cuda":
             try:
@@ -143,7 +149,7 @@ class SignalModelTrainer:
             except Exception as e:
                 logger.warning(f"SignalModelTrainer: torch.compile failed: {e}")
 
-        logger.info(f"SignalModelTrainer: device={device}, amp={self.use_amp}, dtype={amp_dtype}")
+        logger.info(f"SignalModelTrainer: device={device}, amp={self.use_amp}, dtype=float16, scaler={self._scaler is not None}")
 
     def fit(
         self,
@@ -177,8 +183,8 @@ class SignalModelTrainer:
             "weight_decay": 1e-4,
             "epochs": 100,
             "early_stopping_patience": 15,
-            "batch_size": 256,
-            "num_workers": 4,
+            "batch_size": 64,          # GTX 1650: 4GB VRAM
+            "num_workers": 2,          # GTX 1650: limited PCIe bandwidth
             "pin_memory": True,
             "grad_clip": 1.0,
         }
@@ -280,17 +286,23 @@ class SignalModelTrainer:
 
             optimizer.zero_grad(set_to_none=True)
 
-            if self.use_amp:
+            if self.use_amp and self._scaler is not None:
+                # FP16 with GradScaler (required on Turing/GTX 1650)
                 with torch.amp.autocast(device_type="cuda", dtype=self.amp_dtype):
                     log_probs = self.model(temporal, orderflow, volatility, news)
                     loss = criterion(log_probs, labels)
+                self._scaler.scale(loss).backward()
+                self._scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip)
+                self._scaler.step(optimizer)
+                self._scaler.update()
             else:
                 log_probs = self.model(temporal, orderflow, volatility, news)
                 loss = criterion(log_probs, labels)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip)
+                optimizer.step()
 
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip)
-            optimizer.step()
             total_loss += loss.item()
 
         return total_loss / len(loader)

@@ -35,13 +35,13 @@ signal_model:
   early_stopping_patience: 15
   learning_rate: 0.001
   weight_decay: 0.0001
-  batch_size: 256
-  num_workers: 4
+  batch_size: 64               # GTX 1650 (4GB VRAM) — keep small
+  num_workers: 2               # GTX 1650 has limited bandwidth
   pin_memory: true
-  use_amp: true                # BF16 autocast for RTX 5070
-  amp_dtype: "bfloat16"        # Blackwell native BF16
-  use_compile: true            # torch.compile for RTX 5070 speedup
-  compile_mode: "max-autotune"
+  use_amp: true                # FP16 autocast for GTX 1650 (Turing)
+  amp_dtype: "float16"         # Turing supports FP16 (NOT bfloat16)
+  use_compile: false           # Turing doesn't benefit from torch.compile
+  compile_mode: "default"      # Not used (compile disabled)
 
 triple_barrier:
   atr_multiplier_tp: 1.5
@@ -56,7 +56,7 @@ walk_forward:
 
 finbert:
   model_name: "ProsusAI/finbert"
-  batch_size: 64
+  batch_size: 16               # Small batch — FinBERT runs on CPU for GTX 1650
   max_length: 512
-  device: "cuda"
-  dtype: "float16"             # FP16 for FinBERT inference on RTX 5070
+  device: "cpu"                # FinBERT on CPU (won't fit in 4GB alongside training)
+  dtype: "float32"             # CPU inference uses FP32

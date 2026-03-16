@@ -180,9 +180,9 @@ def fetch_alpaca_news(
 def compute_finbert_sentiment(
     texts: list,
     model_name: str = "ProsusAI/finbert",
-    batch_size: int = 64,
-    device: str = "cuda",
-    dtype: str = "float16",
+    batch_size: int = 16,
+    device: str = "cpu",
+    dtype: str = "float32",
     cache_path: Path = None,
 ) -> list:
     """
@@ -191,7 +191,7 @@ def compute_finbert_sentiment(
     Returns scores in [-1, +1]:
         positive → +1, negative → -1, neutral → 0, weighted by confidence.
 
-    Uses FP16 inference for RTX 5070 efficiency.
+    Runs on CPU for GTX 1650 (4GB VRAM insufficient for FinBERT + training).
     Results are cached to `cache_path` if provided (parquet format).
 
     No look-ahead risk: this is called on historical article texts only,
@@ -200,9 +200,9 @@ def compute_finbert_sentiment(
     Args:
         texts: List of strings (headlines + summaries)
         model_name: HuggingFace model ID
-        batch_size: Inference batch size (64 fits in 12GB VRAM with FP16)
-        device: 'cuda' or 'cpu'
-        dtype: 'float16' or 'bfloat16'
+        batch_size: Inference batch size (16 on CPU — FinBERT is ~420MB)
+        device: 'cpu' for GTX 1650 (leave GPU VRAM free for signal model)
+        dtype: 'float32' for CPU inference
         cache_path: Path to parquet cache file (skip if already exists)
 
     Returns:
@@ -216,8 +216,9 @@ def compute_finbert_sentiment(
         import torch
         from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 
-        torch_dtype = torch.float16 if dtype == "float16" else torch.bfloat16
-        use_device = device if torch.cuda.is_available() else "cpu"
+        # GTX 1650: always use CPU for FinBERT to keep 4GB VRAM free for training
+        use_device = "cpu"
+        torch_dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -240,8 +241,8 @@ def compute_finbert_sentiment(
             ).to(use_device)
 
             with torch.no_grad():
-                with torch.amp.autocast(device_type=use_device.split(":")[0], dtype=torch_dtype):
-                    outputs = model(**encoded)
+                # CPU inference — no autocast needed
+                outputs = model(**encoded)
 
             probs = torch.softmax(outputs.logits.float(), dim=-1).cpu().numpy()
             labels = model.config.id2label

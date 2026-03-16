@@ -18,14 +18,19 @@ build/
 venv/
 env/
 
-# Node
-node_modules/
-.next/
-out/
-.nuxt/
+# Data (downloaded locally)
+data/raw/
+data/processed/
+data/cache/
 
-# Storage / uploads
-backend/storage/
+# Model artifacts
+models/saved/
+*.pt
+*.pth
+*.ckpt
+
+# Reports (generated)
+backtesting/reports/*.html
 
 # Logs
 *.log

@@ -1,11 +1,11 @@
 # ============================================================
 # NQ/ES Deep Learning Trading System — Requirements
-# RTX 5070 (Blackwell, CUDA 12.6+) optimized
+# GTX 1650 (Turing, CUDA 11.8) optimized
 # Python 3.11+
 # ============================================================
 
-# --- PyTorch (CUDA 12.6 for RTX 5070 / Blackwell) ---
-# Install via: pip install torch==2.5.1+cu126 torchvision==0.20.1+cu126 --index-url https://download.pytorch.org/whl/cu126
+# --- PyTorch (CUDA 11.8 for GTX 1650 / Turing) ---
+# Install via: pip install torch==2.5.1+cu118 torchvision==0.20.1+cu118 --index-url https://download.pytorch.org/whl/cu118
 torch==2.5.1
 torchvision==0.20.1
 
