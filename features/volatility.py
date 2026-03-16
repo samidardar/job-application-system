@@ -183,7 +183,7 @@ def add_volatility_features(df: pd.DataFrame, df_vix: pd.DataFrame = None) -> pd
     df["realized_vol_20"] = compute_realized_vol(df)
     df["vol_of_vol"] = compute_vol_of_vol(df)
 
-    if df_vix is not None:
+    if df_vix is not None and len(df_vix) > 0 and "close" in df_vix.columns:
         df["vix_daily"] = compute_vix_aligned(df_vix, df)
     else:
         df["vix_daily"] = np.nan

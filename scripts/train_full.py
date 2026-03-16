@@ -118,7 +118,7 @@ def main():
         et_bars = df_bars.index.tz_convert("America/New_York")
         session_mask = (et_bars.time >= pd.Timestamp("09:30").time()) & \
                        (et_bars.time <= pd.Timestamp("16:15").time()) & \
-                       (et_bars.index.dayofweek < 5)
+                       (et_bars.dayofweek < 5)
         df_bars = df_bars[session_mask]
 
     print(f"  Loaded {len(df_bars)} 5-min bars ({df_bars.index[0].date()} → {df_bars.index[-1].date()})")
@@ -141,7 +141,10 @@ def main():
     print("\n[3/8] Computing triple barrier labels...")
     from labels.triple_barrier import TripleBarrierLabeler
 
-    df_for_labels = df_bars.join(X_full[["atr_14", "vol_regime", "macro_event_flag"]], how="left")
+    # Use unscaled metadata for labeling (X_full is z-scored)
+    label_cols = ["atr_14", "vol_regime", "macro_event_flag"]
+    label_src = meta_full[[c for c in label_cols if c in meta_full.columns]]
+    df_for_labels = df_bars.join(label_src, how="left")
     labeler = TripleBarrierLabeler()
     df_labeled = labeler.fit_transform(df_for_labels)
     labeler.plot_barrier_distribution(
@@ -208,13 +211,11 @@ def main():
 
     # Save metrics for dashboard
     metrics_df = wf_results.summary_table()
-    metrics_df.to_parquet("backtesting/reports/metrics.parquet")
+    metrics_df.to_csv("backtesting/reports/metrics.csv", index=False)
 
     # Save aggregate trade log
-    all_trades = pd.concat(
-        [f.trade_log for f in wf_results.folds if not f.trade_log.empty],
-        ignore_index=True,
-    )
+    trade_logs = [f.trade_log for f in wf_results.folds if not f.trade_log.empty]
+    all_trades = pd.concat(trade_logs, ignore_index=True) if trade_logs else pd.DataFrame()
     if not all_trades.empty:
         all_trades.to_parquet("backtesting/reports/trade_log.parquet")
         # Save equity curve (last fold)

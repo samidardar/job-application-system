@@ -81,13 +81,11 @@ REGIME_EXTRA_FEATURES = [
     "cvd_divergence",
     "vw_momentum_5",
     "volume_regime",
-    "vol_of_vol",
-    "vix_daily",
     "hour_cos",
     "minute_sin",
     "minute_cos",
     "dow_sin",
-]  # Extra features used by regime classifier
+]  # Extra features used by regime classifier (vol_of_vol/vix_daily already in VOLATILITY_FEATURES)
 
 ALL_MODEL_FEATURES = (
     TEMPORAL_FEATURES + ORDERFLOW_FEATURES + VOLATILITY_FEATURES + NEWS_FEATURES
@@ -283,7 +281,8 @@ class FeaturePipeline:
         # Forward-fill up to 3 bars for other features
         all_feat_cols = self._get_feature_cols(df)
         present = [c for c in all_feat_cols if c in df.columns]
-        df[present] = df[present].ffill(limit=3)
+        for col in present:
+            df[col] = df[col].ffill(limit=3)
 
         # Drop rows where > 30% of critical features are still NaN
         nan_frac = df[present].isna().mean(axis=1)

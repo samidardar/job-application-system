@@ -201,13 +201,23 @@ def _generate_synthetic_ohlcv(
     import numpy as np
 
     results = {}
-    n_bars = years * 252 * 78  # ~78 five-min bars per session
+    n_bars_per_day = 78  # 5-min bars in 09:30-16:00 session
+    n_days = years * 252
 
     for sym in symbols:
-        logger.info(f"Generating synthetic {sym} data ({n_bars} bars)...")
-        idx = pd.date_range(
-            start="2022-01-03 09:30", periods=n_bars, freq="5min", tz="America/New_York"
-        )
+        logger.info(f"Generating synthetic {sym} data ({n_days * n_bars_per_day} bars)...")
+
+        # Generate only trading-session bars (09:30-16:00 ET, weekdays)
+        all_dates = pd.bdate_range(start="2022-01-03", periods=n_days)
+        bar_times = []
+        for d in all_dates:
+            session_start = pd.Timestamp(d.strftime("%Y-%m-%d") + " 09:30",
+                                         tz="America/New_York")
+            day_bars = pd.date_range(session_start, periods=n_bars_per_day, freq="5min")
+            bar_times.extend(day_bars)
+        idx = pd.DatetimeIndex(bar_times)
+        n_bars = len(idx)
+
         rng = np.random.default_rng(42)
         base = 18000 if "NQ" in sym else 4500
         close = base + np.cumsum(rng.normal(0, 10, n_bars))

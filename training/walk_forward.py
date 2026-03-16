@@ -239,11 +239,12 @@ class WalkForwardValidator:
             X_train, meta_train = pipe.fit_transform(df_train, df_news_train, df_vix, df_ticks_train)
             X_test, meta_test = pipe.transform(df_test, df_news_test, df_vix, df_ticks_test)
 
-            # 2. Labels
+            # 2. Labels (use unscaled metadata, not z-scored X_train)
             labeler = TripleBarrierLabeler()
-            # Attach ATR + regime cols from features to df_train for labeling
+            label_cols = ["atr_14", "vol_regime", "macro_event_flag"]
+            label_src = meta_train[[c for c in label_cols if c in meta_train.columns]]
             df_train_labeled = labeler.fit_transform(
-                df_train.join(X_train[["atr_14", "vol_regime", "macro_event_flag"]], how="left")
+                df_train.join(label_src, how="left")
                 if "atr_14" not in df_train.columns else df_train
             )
             y_train = df_train_labeled["label"].reindex(X_train.index).fillna(0).astype(int)
@@ -296,9 +297,13 @@ class WalkForwardValidator:
             if len(X_test_mr) > 0:
                 from training.trainer import prepare_sequences
                 import torch
-                # Build signals dataframe
+                # Build signals dataframe (prepare_sequences drops first seq_len rows)
+                SEQ_LEN = 20
                 signals_list = _generate_signals(model, X_test_mr, trainer.device)
-                signals_df = pd.DataFrame(signals_list, index=X_test_mr.index)
+                if len(signals_list) > 0:
+                    signals_df = pd.DataFrame(signals_list, index=X_test_mr.index[SEQ_LEN:])
+                else:
+                    signals_df = pd.DataFrame(columns=["signal", "confidence"])
             else:
                 signals_df = pd.DataFrame(columns=["signal", "confidence"])
 

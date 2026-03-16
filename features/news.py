@@ -426,7 +426,7 @@ def compute_macro_event_flag(df_bars: pd.DataFrame) -> pd.Series:
         window_start = event_utc - pd.Timedelta(minutes=pre_min)
         window_end = event_utc + pd.Timedelta(minutes=post_min)
         in_window = (bar_index_utc >= window_start) & (bar_index_utc <= window_end)
-        flags |= in_window.astype(int).values
+        flags |= np.asarray(in_window).astype(int)
 
     return pd.Series(flags, index=df_bars.index, name="macro_event_flag")
 
