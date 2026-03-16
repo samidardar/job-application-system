@@ -1,0 +1,13 @@
+# Use this config for the Celery Worker service in Railway
+# In Railway dashboard: add new service from same repo, set Root Directory = backend
+# Then override the start command to:
+#   celery -A worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "celery -A worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
