@@ -18,10 +18,11 @@ build/
 venv/
 env/
 
-# Data (downloaded locally)
+# Data (downloaded/generated locally)
 data/raw/
 data/processed/
 data/cache/
+data/labels/
 
 # Model artifacts
 models/saved/
@@ -30,7 +31,7 @@ models/saved/
 *.ckpt
 
 # Reports (generated)
-backtesting/reports/*.html
+backtesting/reports/
 
 # Logs
 *.log
