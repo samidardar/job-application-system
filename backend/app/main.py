@@ -9,6 +9,7 @@ from app.database import engine, AsyncSessionLocal
 
 # Import all models so Alembic env.py / Base.metadata sees them
 import app.models.site_credential  # noqa: F401
+import app.models.conversation  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ async def security_headers_middleware(request: Request, call_next):
 
 # Register routers
 from app.api import auth, users, cv, jobs, applications, documents, pipeline, dashboard
+from app.api import consultant
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
@@ -90,6 +92,7 @@ app.include_router(applications.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(pipeline.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
+app.include_router(consultant.router, prefix="/api/v1")
 
 
 # ── Health endpoints ─────────────────────────────────────────────────────────

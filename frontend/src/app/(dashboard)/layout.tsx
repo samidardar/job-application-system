@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   ChevronRight,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/jobs", label: "Offres", icon: Briefcase },
   { href: "/applications", label: "Candidatures", icon: FileText },
   { href: "/pipeline", label: "Pipeline IA", icon: Zap },
+  { href: "/consultant", label: "Consultant IA", icon: GraduationCap },
   { href: "/profile", label: "Profil & CV", icon: User },
   { href: "/settings", label: "Paramètres", icon: Settings },
 ];

@@ -360,17 +360,28 @@ async def _generate_for_job(
 
     # ── Save to DB ──
     async with AsyncSessionLocal() as db:
-        db.add(cv_doc)
-        db.add(ldm_doc)
-        await db.flush()
-        await db.refresh(cv_doc)
-        await db.refresh(ldm_doc)
+        try:
+            db.add(cv_doc)
+            db.add(ldm_doc)
+            await db.flush()
+            await db.refresh(cv_doc)
+            await db.refresh(ldm_doc)
 
-        db_result = await db.execute(select(Job).where(Job.id == job_id))
-        db_job = db_result.scalar_one_or_none()
-        if db_job:
-            db_job.status = JobStatusEnum.LETTER_GENERATED
-        await db.commit()
+            db_result = await db.execute(select(Job).where(Job.id == job_id))
+            db_job = db_result.scalar_one_or_none()
+            if db_job:
+                db_job.status = JobStatusEnum.LETTER_GENERATED
+            await db.commit()
+        except Exception as db_err:
+            await db.rollback()
+            # Clean up orphaned PDF files so storage doesn't leak
+            for path in [cv_doc.file_path, ldm_doc.file_path]:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+            logger.error(f"[docs] DB save failed for {job.get('company')}: {db_err}")
+            return None
 
     enriched = dict(job)  # type: ignore
     enriched["cv_doc_id"] = str(cv_doc.id)

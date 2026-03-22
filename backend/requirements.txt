@@ -1,5 +1,7 @@
 fastapi==0.110.0
-langgraph>=0.2.14
+langgraph>=0.2.50
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.7
 uvicorn[standard]==0.27.1
 sqlalchemy[asyncio]==2.0.28
 asyncpg==0.29.0

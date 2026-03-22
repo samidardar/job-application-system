@@ -7,7 +7,7 @@ import asyncio
 import logging
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 
 from app.agents.graph.state import PipelineState, JobDict
@@ -35,6 +35,17 @@ class MatchingOutput(BaseModel):
     ats_keywords_critical: list[str]  # Keywords that MUST appear in CV/LDM
     tailoring_hints: str              # 1-2 sentences for content generation
     contract_type_match: bool         # Does contract type match user preferences?
+
+    @field_validator("score")
+    @classmethod
+    def clamp_score(cls, v: int) -> int:
+        return max(0, min(100, v))
+
+    @field_validator("verdict")
+    @classmethod
+    def normalise_verdict(cls, v: str) -> str:
+        v = v.lower().strip()
+        return v if v in ("apply", "skip") else "skip"
 
 
 async def _score_job(
@@ -178,7 +189,7 @@ async def node_match(state: PipelineState) -> dict:
     matched: list[JobDict] = []
     errors: list[str] = []
     for r in results:
-        if isinstance(r, JobDict) or (isinstance(r, dict) and r):
+        if isinstance(r, dict) and r:
             matched.append(r)  # type: ignore
         elif isinstance(r, Exception):
             errors.append(str(r))

@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # Default allows local dev. In production set: ALLOWED_ORIGINS=https://yourdomain.com
     allowed_origins: str = "http://localhost:3000,http://frontend:3000"
 
+    # Gemini — Dr. Rousseau career consultant chatbot (gemini-2.5-flash-preview-04-17)
+    # Get key at https://aistudio.google.com/app/apikey — free tier available
+    gemini_api_key: str = ""
+
     # France Travail API (ex Pôle Emploi) — https://francetravail.io/data/api
     france_travail_client_id: str = ""
     france_travail_client_secret: str = ""

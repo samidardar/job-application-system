@@ -145,3 +145,17 @@ export const documentsApi = {
   getDownloadUrl: (id: string) => `${API_BASE}/api/v1/documents/${id}/download`,
   getPreview: (id: string) => api.get(`/documents/${id}/preview`),
 };
+
+// Consultant (Dr. Rousseau career chatbot)
+export const consultantApi = {
+  listConversations: (limit = 50) =>
+    api.get(`/consultant/conversations?limit=${limit}`),
+  createConversation: () => api.post("/consultant/conversations"),
+  getMessages: (convId: string) =>
+    api.get(`/consultant/conversations/${convId}/messages`),
+  deleteConversation: (convId: string) =>
+    api.delete(`/consultant/conversations/${convId}`),
+  // Returns the SSE stream URL (use with fetch + ReadableStream, not axios)
+  getChatStreamUrl: (convId: string) =>
+    `${API_BASE}/api/v1/consultant/conversations/${convId}/chat`,
+};

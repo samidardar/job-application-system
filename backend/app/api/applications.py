@@ -40,12 +40,21 @@ async def get_stats(
     apps = result.scalars().all()
 
     total = len(apps)
-    submitted = sum(1 for a in apps if a.status != ApplicationStatusEnum.PENDING)
+    # "Submitted" = application was actually sent (SUBMITTED or any later status)
+    _sent_statuses = {
+        ApplicationStatusEnum.SUBMITTED,
+        ApplicationStatusEnum.VIEWED,
+        ApplicationStatusEnum.INTERVIEW_SCHEDULED,
+        ApplicationStatusEnum.OFFER_RECEIVED,
+        ApplicationStatusEnum.REJECTED,
+    }
+    submitted = sum(1 for a in apps if a.status in _sent_statuses)
     viewed = sum(1 for a in apps if a.status == ApplicationStatusEnum.VIEWED)
     interviews = sum(1 for a in apps if a.status == ApplicationStatusEnum.INTERVIEW_SCHEDULED)
     offers = sum(1 for a in apps if a.status == ApplicationStatusEnum.OFFER_RECEIVED)
     rejected = sum(1 for a in apps if a.status == ApplicationStatusEnum.REJECTED)
 
+    # Response = any status change beyond SUBMITTED (recruiter actually took action)
     responses = viewed + interviews + offers + rejected
     response_rate = (responses / submitted * 100) if submitted > 0 else 0.0
 

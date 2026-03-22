@@ -79,6 +79,9 @@ def _is_safe_url(url: str) -> tuple[bool, str]:
             return False, f"Private/internal IP blocked: {hostname}"
     except ValueError:
         # It's a domain name — resolve it to check the IP
+        # 2-second timeout prevents DoS via slow/stalling DNS servers
+        old_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(2)
         try:
             ip_str = socket.gethostbyname(hostname)
             addr = ipaddress.ip_address(ip_str)
@@ -86,6 +89,8 @@ def _is_safe_url(url: str) -> tuple[bool, str]:
                 return False, f"Domain resolves to private IP: {hostname} → {ip_str}"
         except OSError:
             pass  # DNS failure — allow (will fail at page.goto)
+        finally:
+            socket.setdefaulttimeout(old_timeout)
 
     return True, ""
 
