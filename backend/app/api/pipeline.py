@@ -3,6 +3,7 @@ import asyncio
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
@@ -12,6 +13,12 @@ from app.models.agent_run import PipelineRun, AgentStatusEnum
 from app.schemas.agent import PipelineRunOut, PipelineTriggerResponse
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
+
+
+class PipelineTriggerRequest(BaseModel):
+    job_title: str
+    location: str
+    min_match_score: int = 70
 
 # In-memory SSE event store per user (pipeline_run_id → list of events)
 _sse_queues: dict[str, asyncio.Queue] = {}
@@ -33,13 +40,12 @@ async def publish_sse_event(user_id: str, event: dict) -> None:
 
 @router.post("/trigger", response_model=PipelineTriggerResponse)
 async def trigger_pipeline(
+    body: PipelineTriggerRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Import here to avoid circular imports
-    from worker.tasks.pipeline_tasks import run_daily_pipeline
+    from worker.tasks.pipeline_tasks import run_search_pipeline
 
-    # Create pipeline run record
     pipeline_run = PipelineRun(
         user_id=current_user.id,
         triggered_by="manual",
@@ -49,20 +55,21 @@ async def trigger_pipeline(
     await db.commit()
     await db.refresh(pipeline_run)
 
-    # Dispatch Celery task
-    task = run_daily_pipeline.delay(
+    task = run_search_pipeline.delay(
         str(current_user.id),
         str(pipeline_run.id),
+        body.job_title,
+        body.location,
+        body.min_match_score,
     )
 
-    # Update with celery task id
     pipeline_run.celery_task_id = task.id
     await db.commit()
 
     return PipelineTriggerResponse(
         pipeline_run_id=pipeline_run.id,
         celery_task_id=task.id,
-        message="Pipeline started. Use /pipeline/stream for live updates.",
+        message="Pipeline démarré. Connectez-vous à /pipeline/stream pour le suivi en direct.",
     )
 
 

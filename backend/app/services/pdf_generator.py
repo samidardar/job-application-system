@@ -1,40 +1,40 @@
+"""
+PDF generation using Playwright (Chromium) — pixel-perfect, same engine as Chrome.
+"""
 import logging
 from pathlib import Path
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 async def generate_pdf(html_content: str, output_path: str) -> int:
     """
-    Generate a PDF from HTML content using WeasyPrint.
-    Returns the file size in bytes.
+    Render HTML to PDF using Playwright/Chromium.
+    Returns file size in bytes.
     """
-    try:
-        from weasyprint import HTML, CSS
-        from weasyprint.text.fonts import FontConfiguration
+    from playwright.async_api import async_playwright
 
-        font_config = FontConfiguration()
-        css = CSS(string="""
-            @page {
-                margin: 1.5cm 1.5cm 2cm;
-                size: A4;
-            }
-        """, font_config=font_config)
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        )
+        page = await browser.new_page()
 
-        HTML(string=html_content).write_pdf(
-            output_path,
-            stylesheets=[css],
-            font_config=font_config,
+        # Set content directly (no file:// URL needed)
+        await page.set_content(html_content, wait_until="networkidle")
+
+        await page.pdf(
+            path=output_path,
+            format="A4",
+            margin={"top": "1.5cm", "right": "1.5cm", "bottom": "2cm", "left": "1.5cm"},
+            print_background=True,
         )
 
-        return Path(output_path).stat().st_size
+        await browser.close()
 
-    except ImportError:
-        logger.error("WeasyPrint not installed")
-        raise
-    except Exception as e:
-        logger.error(f"PDF generation failed: {e}")
-        raise
+    size = Path(output_path).stat().st_size
+    logger.info(f"PDF generated: {output_path} ({size} bytes)")
+    return size

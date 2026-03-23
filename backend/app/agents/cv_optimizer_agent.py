@@ -1,8 +1,10 @@
+"""
+CV Optimizer: rewrites only text content inside existing HTML tags.
+The user's original CV format, layout, and CSS are never modified.
+"""
 import logging
 import uuid
-from datetime import datetime
 from pathlib import Path
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 from app.agents.base_agent import BaseAgent
@@ -18,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 class CVOptimizerOutput(BaseModel):
-    cv_html: str
+    cv_html: str                        # Full HTML with ONLY text rewritten, structure intact
     keywords_injected: list[str]
-    changes_made: list[str]
+    sections_modified: list[str]        # Which sections were touched
     ats_score_estimate: int
 
 
@@ -28,7 +30,7 @@ class CVOptimizerAgent(BaseAgent):
     name = "cv_optimizer"
 
     async def run(self, job_id: uuid.UUID) -> uuid.UUID | None:
-        """Generate a tailored CV for a job. Returns document_id."""
+        """Generate a tailored CV for a job preserving original format exactly."""
         await self._start_run(job_id=job_id, input_data={"job_id": str(job_id)})
 
         try:
@@ -47,43 +49,56 @@ class CVOptimizerAgent(BaseAgent):
                 await self._finish_run(AgentStatusEnum.SKIPPED, error_message="No CV template")
                 return None
 
-            system = """You are an expert ATS-optimization specialist and senior technical recruiter.
-You rewrite CV content to maximally match a specific job description WITHOUT fabricating experience.
-Every bullet point must be truthful, quantified where possible, and keyword-rich.
-Keep the same HTML structure — only modify text content.
-Do NOT invent skills, certifications, or experience the candidate doesn't have."""
+            system = """Tu es un expert ATS et recruteur senior spécialisé tech/data.
+Tu reçois le HTML complet du CV original d'un candidat et une offre d'emploi.
 
-            user_msg = f"""## BASE CV (HTML)
+RÈGLE ABSOLUE : Tu ne modifies QUE le texte visible. JAMAIS les balises HTML, les attributs,
+les classes CSS, les styles inline, ou la structure du document.
+Chaque <tag>...</tag> reste intact — seul le contenu textuel entre les balises peut changer.
+
+Ce que tu peux faire :
+- Réordonner les listes de compétences pour mettre en avant les plus pertinentes
+- Réécrire les bullet points d'expérience avec les mots-clés du poste (vérité uniquement)
+- Reformuler le résumé/profil pour matcher le poste
+- Injecter les mots-clés ATS critiques naturellement dans le texte existant
+
+Ce que tu ne fais JAMAIS :
+- Inventer des expériences, diplômes ou compétences
+- Changer le HTML/CSS/structure
+- Ajouter de nouvelles sections
+
+Retourne le HTML complet modifié."""
+
+            user_msg = f"""## CV ORIGINAL (HTML COMPLET — préserve exactement cette structure)
 {profile.cv_html_template}
 
-## TARGET JOB
-Title: {job.title} at {job.company}
-Must-have keywords: {', '.join(job.ats_keywords_critical or [])}
-Tailoring hints: {job.tailoring_hints or 'Focus on matching the job requirements'}
-Job description: {(job.description_raw or '')[:2000]}
+## OFFRE D'EMPLOI
+Titre: {job.title}
+Entreprise: {job.company}
+Mots-clés ATS critiques: {', '.join(job.ats_keywords_critical or [])}
+Conseils de ciblage: {job.tailoring_hints or ''}
+Description (extrait): {(job.description_raw or '')[:2500]}
 
-## RULES
-- Reorder skills to lead with the most relevant ones for this job
-- Rewrite 2-3 experience bullets to mirror job description language
-- Inject ATS keywords naturally (no keyword stuffing)
-- Keep same HTML structure, only change text content
-- Output must be valid HTML"""
+## INSTRUCTION
+Retourne le HTML du CV avec UNIQUEMENT le texte réécrit pour matcher ce poste.
+Ne change aucune balise HTML, aucun style, aucune classe."""
 
             claude = get_claude_service()
             result, pt, ct = await claude.complete_structured(
                 system=system,
                 user=user_msg,
                 output_schema=CVOptimizerOutput,
-                max_tokens=6000,
+                max_tokens=8000,
             )
 
-            # Generate PDF
-            file_name = f"cv_{job.company.replace(' ', '_')}_{job_id}.pdf"
-            file_path = str(Path(settings.storage_path) / "documents" / str(self.user_id) / file_name)
-
+            # Generate PDF with Playwright
+            safe_company = "".join(c for c in job.company if c.isalnum() or c in "_ -")[:30]
+            file_name = f"cv_ciblé_{safe_company}_{job_id}.pdf"
+            file_path = str(
+                Path(settings.storage_path) / "documents" / str(self.user_id) / file_name
+            )
             file_size = await generate_pdf(result.cv_html, file_path)
 
-            # Save document
             doc = Document(
                 user_id=self.user_id,
                 job_id=job_id,
@@ -108,14 +123,13 @@ Job description: {(job.description_raw or '')[:2000]}
                 output_data={
                     "document_id": str(doc.id),
                     "ats_score": result.ats_score_estimate,
-                    "keywords_count": len(result.keywords_injected),
+                    "sections_modified": result.sections_modified,
                 },
                 claude_tokens_used=pt + ct,
             )
-
             return doc.id
 
         except Exception as e:
-            logger.error(f"CV optimization failed for job {job_id}: {e}", exc_info=True)
+            logger.error(f"CV optimizer failed for job {job_id}: {e}", exc_info=True)
             await self._finish_run(AgentStatusEnum.FAILED, error_message=str(e))
             return None

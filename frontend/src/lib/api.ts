@@ -78,6 +78,7 @@ export const jobsApi = {
   get: (id: string) => api.get(`/jobs/${id}`),
   updateStatus: (id: string, status: string) =>
     api.patch(`/jobs/${id}/status`, { status }),
+  generateDocuments: (id: string) => api.post(`/jobs/${id}/generate`),
 };
 
 // Applications
@@ -91,7 +92,8 @@ export const applicationsApi = {
 
 // Pipeline
 export const pipelineApi = {
-  trigger: () => api.post("/pipeline/trigger"),
+  trigger: (data: { job_title: string; location: string; min_match_score?: number }) =>
+    api.post("/pipeline/trigger", data),
   getStatus: () => api.get("/pipeline/status"),
   getRuns: () => api.get("/pipeline/runs"),
   getRun: (id: string) => api.get(`/pipeline/runs/${id}`),

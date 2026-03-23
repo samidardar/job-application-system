@@ -45,11 +45,17 @@ def run_async(coro):
 
 @shared_task(name="worker.tasks.pipeline_tasks.run_daily_pipeline", bind=True, max_retries=1)
 def run_daily_pipeline(self, user_id: str, pipeline_run_id: str):
-    """Main pipeline orchestrator for a single user."""
-    return run_async(_run_pipeline_async(user_id, pipeline_run_id))
+    """Legacy daily pipeline (kept for Celery Beat compatibility)."""
+    return run_async(_run_pipeline_async(user_id, pipeline_run_id, "Data Scientist", "Paris, France"))
 
 
-async def _run_pipeline_async(user_id: str, pipeline_run_id: str):
+@shared_task(name="worker.tasks.pipeline_tasks.run_search_pipeline", bind=True, max_retries=1)
+def run_search_pipeline(self, user_id: str, pipeline_run_id: str, job_title: str, location: str, min_match_score: int = 70):
+    """On-demand pipeline triggered by user with specific job title + location."""
+    return run_async(_run_pipeline_async(user_id, pipeline_run_id, job_title, location, min_match_score))
+
+
+async def _run_pipeline_async(user_id: str, pipeline_run_id: str, job_title: str, location: str, min_match_score: int = 70):
     async with AsyncSessionLocal() as db:
         uid = uuid.UUID(user_id)
         run_id = uuid.UUID(pipeline_run_id)
@@ -76,7 +82,7 @@ async def _run_pipeline_async(user_id: str, pipeline_run_id: str):
             # === STEP 1: SCRAPING ===
             logger.info(f"[Pipeline {run_id}] Step 1: Scraping")
             scraper = ScrapingAgent(db, run_id, uid)
-            new_job_ids = await scraper.run()
+            new_job_ids = await scraper.run(job_title=job_title, location=location)
             await db.commit()
 
             pipeline_run.jobs_scraped = len(new_job_ids)

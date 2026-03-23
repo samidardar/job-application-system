@@ -48,3 +48,37 @@ class JobListOut(BaseModel):
 
 class JobStatusUpdate(BaseModel):
     status: JobStatusEnum
+
+
+class DocumentRef(BaseModel):
+    id: uuid.UUID
+    document_type: str
+    file_name: str | None
+    file_size_bytes: int | None
+    generated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JobDetailOut(BaseModel):
+    id: uuid.UUID
+    platform: JobPlatformEnum
+    title: str
+    company: str
+    location: str | None
+    remote_type: str | None
+    job_type: JobTypeEnum | None
+    salary_range: str | None
+    description_clean: str | None
+    application_url: str | None
+    posted_at: datetime | None
+    scraped_at: datetime
+    match_score: int | None
+    match_rationale: dict | None
+    match_highlights: list | None
+    ats_keywords_critical: list | None
+    tailoring_hints: str | None
+    status: JobStatusEnum
+    documents: list[DocumentRef] = []
+
+    model_config = {"from_attributes": True}

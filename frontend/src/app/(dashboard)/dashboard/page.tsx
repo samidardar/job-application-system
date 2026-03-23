@@ -77,6 +77,9 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [jobTitle, setJobTitle] = useState("");
+  const [location, setLocation] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -94,10 +97,15 @@ export default function DashboardPage() {
   }, [load]);
 
   const triggerPipeline = async () => {
+    if (!jobTitle.trim() || !location.trim()) {
+      setShowSearch(true);
+      return;
+    }
     setTriggering(true);
+    setShowSearch(false);
     try {
-      await pipelineApi.trigger();
-      toast.success("Pipeline démarré ! Consultez l'onglet Pipeline pour le suivi en direct.");
+      await pipelineApi.trigger({ job_title: jobTitle, location });
+      toast.success("Pipeline démarré ! Les offres apparaîtront dans l'onglet Offres.");
       setTimeout(load, 3000);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Erreur lors du démarrage");
@@ -132,14 +140,48 @@ export default function DashboardPage() {
           </p>
         </div>
         <button
-          onClick={triggerPipeline}
+          onClick={() => setShowSearch(true)}
           disabled={triggering}
           className="flex items-center gap-2 bg-postulio-teal text-white px-4 py-2.5 rounded-lg font-medium hover:bg-teal-700 transition disabled:opacity-60 shadow-sm"
         >
           <Zap className="h-4 w-4" />
-          {triggering ? "Démarrage..." : "Lancer le pipeline"}
+          {triggering ? "Scraping en cours…" : "Nouvelle recherche"}
         </button>
       </div>
+
+      {/* Search form */}
+      {showSearch && (
+        <div className="bg-white rounded-xl border shadow-sm p-5">
+          <h3 className="font-semibold text-postulio-blue mb-3">Lancer une recherche</h3>
+          <div className="flex gap-3 flex-wrap">
+            <input
+              type="text"
+              placeholder="Titre du poste (ex: Data Scientist)"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+              className="flex-1 min-w-48 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-postulio-teal"
+            />
+            <input
+              type="text"
+              placeholder="Localisation (ex: Paris, France)"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="flex-1 min-w-48 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-postulio-teal"
+            />
+            <button
+              onClick={triggerPipeline}
+              disabled={triggering || !jobTitle.trim() || !location.trim()}
+              className="flex items-center gap-2 bg-postulio-teal text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 transition disabled:opacity-60"
+            >
+              <Zap className="h-4 w-4" />
+              {triggering ? "En cours…" : "Scraper maintenant"}
+            </button>
+            <button onClick={() => setShowSearch(false)} className="text-sm text-muted-foreground hover:text-postulio-blue transition px-2">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Pipeline status banner */}
       {metrics?.pipeline_today && (

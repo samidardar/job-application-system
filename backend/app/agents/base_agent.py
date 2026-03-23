@@ -11,15 +11,18 @@ logger = logging.getLogger(__name__)
 class BaseAgent:
     name: str = "base"
 
-    def __init__(self, db: AsyncSession, pipeline_run_id: uuid.UUID, user_id: uuid.UUID):
+    def __init__(self, db: AsyncSession, pipeline_run_id: uuid.UUID | None, user_id: uuid.UUID):
         self.db = db
         self.pipeline_run_id = pipeline_run_id
         self.user_id = user_id
         self._agent_run: AgentRun | None = None
         self._start_time: float = 0
 
-    async def _start_run(self, job_id: uuid.UUID | None = None, input_data: dict | None = None) -> AgentRun:
+    async def _start_run(self, job_id: uuid.UUID | None = None, input_data: dict | None = None) -> AgentRun | None:
         self._start_time = time.time()
+        if self.pipeline_run_id is None:
+            logger.info(f"[{self.name}] Starting (no pipeline_run) | job_id={job_id}")
+            return None
         agent_run = AgentRun(
             pipeline_run_id=self.pipeline_run_id,
             user_id=self.user_id,

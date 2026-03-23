@@ -1,6 +1,5 @@
 """
-LLM service using Anthropic Claude Haiku 4.5 — cheapest Claude model, still very capable.
-Model: claude-haiku-4-5-20251001
+LLM service using Claude Sonnet 4.6 — SOTA quality for CV tailoring, matching, and cover letters.
 """
 import json
 import logging
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-sonnet-4-6"
 
 
 class ClaudeService:
@@ -52,7 +51,7 @@ class ClaudeService:
 
         # Use sync client in thread pool to avoid blocking (Anthropic SDK is sync)
         import asyncio
-        response = await asyncio.get_event_loop().run_in_executor(
+        response = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: self.client.messages.create(
                 model=self.model,

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { jobsApi } from "@/lib/api";
 import { toast } from "sonner";
 import { cn, getScoreClass, PLATFORM_LABELS, CONTRACT_LABELS, timeAgo } from "@/lib/utils";
-import { ExternalLink, Filter } from "lucide-react";
+import { ExternalLink, Filter, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface Job {
   id: string;
@@ -27,6 +28,7 @@ const STATUS_FILTER_OPTIONS = [
 ];
 
 export default function JobsPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -98,11 +100,16 @@ export default function JobsPage() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Publié</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Statut</th>
+                <th className="w-8"></th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-gray-50 transition">
+                <tr
+                  key={job.id}
+                  className="hover:bg-gray-50 transition cursor-pointer"
+                  onClick={() => router.push(`/jobs/${job.id}`)}
+                >
                   <td className="px-5 py-3">
                     <div className="font-medium text-sm">{job.title}</div>
                     <div className="text-xs text-muted-foreground">{job.company} · {job.location}</div>
@@ -129,6 +136,9 @@ export default function JobsPage() {
                     <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
                       {job.status}
                     </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </td>
                 </tr>
               ))}
