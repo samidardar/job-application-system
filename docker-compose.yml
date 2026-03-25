@@ -99,7 +99,7 @@ services:
     # concurrency=2: Playwright is memory-heavy; keep low per worker, scale horizontally
     command: celery -A worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
     healthcheck:
-      test: ["CMD", "celery", "-A", "worker.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      test: ["CMD", "celery", "-A", "worker.celery_app", "inspect", "ping", "-d", "celery@worker"]
       interval: 60s
       timeout: 30s
       retries: 3

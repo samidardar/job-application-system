@@ -40,9 +40,9 @@ async def node_finalize(state: PipelineState) -> dict:
                     run.completed_at = datetime.utcnow()
                     run.jobs_scraped = summary["jobs_scraped"]
                     run.jobs_matched = summary["jobs_matched"]
+                    run.cvs_generated = summary["docs_generated"]
                     run.applications_submitted = summary["applications_submitted"]
-                    if hasattr(run, "errors_count"):
-                        run.errors_count = summary["errors_count"]
+                    run.errors_count = summary["errors_count"]
                     await db.commit()
         except Exception as e:
             logger.error(f"[finalize] DB update error: {e}")

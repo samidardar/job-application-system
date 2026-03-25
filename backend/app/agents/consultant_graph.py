@@ -368,8 +368,11 @@ JSON attendu :
             match = re.search(r"\{[\s\S]+\}", content)
             result = json.loads(match.group(0)) if match else {}
 
-        # Generate PDFs if we got HTML
+        # Generate PDFs and persist Document records so frontend can download via
+        # GET /api/v1/documents/{doc_id}/download
         from app.services.pdf_generator import generate_pdf
+        from app.models.document import Document, DocumentTypeEnum
+        from app.database import AsyncSessionLocal
         from app.config import settings as cfg
         import os
 
@@ -379,20 +382,52 @@ JSON attendu :
             "changes_summary": result.get("changes_summary", []),
             "cv_download_url": None,
             "ldm_download_url": None,
+            "cv_doc_id": None,
+            "ldm_doc_id": None,
         }
 
         storage = cfg.storage_path
         os.makedirs(storage, exist_ok=True)
+        safe_name = user.full_name.replace(" ", "_")
 
-        if result.get("cv_html"):
-            cv_path = os.path.join(storage, f"cv_{uid}_{uuid.uuid4().hex[:8]}.pdf")
-            await generate_pdf(result["cv_html"], cv_path)
-            output["cv_download_url"] = f"/api/v1/documents/download?path={cv_path}"
+        async with AsyncSessionLocal() as doc_db:
+            if result.get("cv_html"):
+                cv_path = os.path.join(storage, f"cv_{uid}_{uuid.uuid4().hex[:8]}.pdf")
+                await generate_pdf(result["cv_html"], cv_path)
+                cv_doc = Document(
+                    user_id=uid,
+                    document_type=DocumentTypeEnum.CV_TAILORED,
+                    content_html=result["cv_html"],
+                    file_path=cv_path,
+                    file_name=f"CV_{safe_name}_{job_title[:30].replace(' ', '_')}.pdf",
+                    file_size_bytes=os.path.getsize(cv_path) if os.path.exists(cv_path) else 0,
+                    ats_keywords_injected=result.get("keywords_injected", []),
+                )
+                doc_db.add(cv_doc)
+                await doc_db.flush()
+                await doc_db.refresh(cv_doc)
+                output["cv_doc_id"] = str(cv_doc.id)
+                output["cv_download_url"] = f"/api/v1/documents/{cv_doc.id}/download"
 
-        if result.get("ldm_html"):
-            ldm_path = os.path.join(storage, f"ldm_{uid}_{uuid.uuid4().hex[:8]}.pdf")
-            await generate_pdf(result["ldm_html"], ldm_path)
-            output["ldm_download_url"] = f"/api/v1/documents/download?path={ldm_path}"
+            if result.get("ldm_html"):
+                ldm_path = os.path.join(storage, f"ldm_{uid}_{uuid.uuid4().hex[:8]}.pdf")
+                await generate_pdf(result["ldm_html"], ldm_path)
+                ldm_doc = Document(
+                    user_id=uid,
+                    document_type=DocumentTypeEnum.COVER_LETTER,
+                    content_html=result["ldm_html"],
+                    content_text=result.get("ldm_text", ""),
+                    file_path=ldm_path,
+                    file_name=f"LDM_{safe_name}_{company_name[:20].replace(' ', '_')}.pdf",
+                    file_size_bytes=os.path.getsize(ldm_path) if os.path.exists(ldm_path) else 0,
+                )
+                doc_db.add(ldm_doc)
+                await doc_db.flush()
+                await doc_db.refresh(ldm_doc)
+                output["ldm_doc_id"] = str(ldm_doc.id)
+                output["ldm_download_url"] = f"/api/v1/documents/{ldm_doc.id}/download"
+
+            await doc_db.commit()
 
         return json.dumps(output, ensure_ascii=False, indent=2)
 
