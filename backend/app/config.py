@@ -54,8 +54,12 @@ class Settings(BaseSettings):
         return v
 
     # CORS — comma-separated list of allowed origins
-    # Default allows local dev. In production set: ALLOWED_ORIGINS=https://yourdomain.com
-    allowed_origins: str = "http://localhost:3000,http://frontend:3000"
+    # Default allows local dev and the production Lovable frontend.
+    # Override in .env: ALLOWED_ORIGINS=https://yourdomain.com
+    allowed_origins: str = (
+        "http://localhost:3000,http://frontend:3000,"
+        "https://boost-your-chance.lovable.app"
+    )
 
     # Gemini — Dr. Rousseau career consultant chatbot (gemini-2.5-flash-preview-04-17)
     # Get key at https://aistudio.google.com/app/apikey — free tier available

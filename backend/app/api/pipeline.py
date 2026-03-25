@@ -61,19 +61,20 @@ async def trigger_pipeline(
             detail="A pipeline is already running for your account. Wait for it to finish.",
         )
 
-    # Rate-limit manual triggers: 1 per hour to prevent accidental spam
-    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-    recent = await db.execute(
+    # Rate-limit: max 2 manual triggers per day (midnight UTC window)
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    daily_runs = await db.execute(
         select(PipelineRun).where(
             PipelineRun.user_id == current_user.id,
             PipelineRun.triggered_by == "manual",
-            PipelineRun.started_at >= one_hour_ago,
-        ).limit(1)
+            PipelineRun.started_at >= today_start,
+        )
     )
-    if recent.scalar_one_or_none():
+    daily_run_count = len(daily_runs.scalars().all())
+    if daily_run_count >= 2:
         raise HTTPException(
             status_code=429,
-            detail="Un déclenchement manuel par heure maximum. Le pipeline tourne aussi automatiquement à 8h00.",
+            detail="Maximum 2 déclenchements manuels par jour. Le pipeline tourne aussi automatiquement à 8h00.",
         )
 
     from worker.tasks.pipeline_tasks import run_daily_pipeline

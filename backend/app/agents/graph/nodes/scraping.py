@@ -1,6 +1,6 @@
 """
 Scraping node — fetches jobs from all sources in parallel:
-  1. jobspy (LinkedIn + Indeed)
+  1. Scrapling (LinkedIn + Indeed) — anti-detection stealthy scraping
   2. France Travail API
   3. La Bonne Alternance API
 Deduplicates and saves to DB.
@@ -17,6 +17,7 @@ from app.database import AsyncSessionLocal
 from app.models.job import Job, JobPlatformEnum, JobTypeEnum, JobStatusEnum
 from app.services.france_travail_api import get_france_travail_api
 from app.services.bonne_alternance_api import get_bonne_alternance_api
+from app.services.scrapling_scraper import get_scrapling_scraper
 
 logger = logging.getLogger(__name__)
 
@@ -42,74 +43,26 @@ CONTRACT_MAP: dict[str, JobTypeEnum] = {
 }
 
 
-async def _scrape_jobspy(
+async def _scrape_scrapling(
     roles: list[str],
     locations: list[str],
     contract_types: list[str],
 ) -> list[dict]:
-    """Scrape LinkedIn + Indeed via jobspy."""
+    """Scrape LinkedIn + Indeed via Scrapling (anti-detection, stealthy)."""
     try:
-        import pandas as pd
-        from jobspy import scrape_jobs
-
-        all_jobs: list[dict] = []
-        for role in roles[:3]:
-            for location in locations[:2]:
-                search_term = f"{role} {contract_types[0] if contract_types else ''}"
-                try:
-                    df = await asyncio.get_running_loop().run_in_executor(
-                        None,
-                        lambda s=search_term, l=location: scrape_jobs(
-                            site_name=["linkedin", "indeed"],
-                            search_term=s,
-                            location=l,
-                            results_wanted=25,
-                            hours_old=25,
-                            country_indeed="France",
-                            linkedin_fetch_description=True,
-                        ),
-                    )
-                    if df is None or df.empty:
-                        continue
-                    for _, row in df.iterrows():
-                        posted_at = None
-                        if row.get("date_posted"):
-                            try:
-                                posted_at = pd.to_datetime(row["date_posted"]).isoformat()
-                            except Exception:
-                                pass
-                        min_s, max_s = row.get("min_amount"), row.get("max_amount")
-                        currency = row.get("currency", "EUR")
-                        interval = row.get("interval", "")
-                        salary = None
-                        if min_s and max_s:
-                            salary = f"{int(min_s)}-{int(max_s)} {currency}/{interval}"
-                        elif min_s:
-                            salary = f"{int(min_s)}+ {currency}/{interval}"
-
-                        all_jobs.append({
-                            "external_id": str(row.get("id", "")),
-                            "platform": str(row.get("site", "linkedin")).lower(),
-                            "title": str(row.get("title", "")),
-                            "company": str(row.get("company", "")),
-                            "company_size": str(row.get("company_num_employees", "")) or None,
-                            "location": str(row.get("location", "")),
-                            "remote_type": "remote" if row.get("is_remote") else None,
-                            "job_type": _detect_contract(
-                                str(row.get("title", "")),
-                                str(row.get("description", ""))[:500],
-                                contract_types,
-                            ),
-                            "salary_range": salary,
-                            "description_raw": str(row.get("description", ""))[:10000],
-                            "application_url": str(row.get("job_url", "")),
-                            "posted_at": posted_at,
-                        })
-                except Exception as e:
-                    logger.warning(f"jobspy failed for '{search_term}' in {location}: {e}")
-        return all_jobs
-    except ImportError:
-        logger.warning("jobspy not installed, skipping LinkedIn/Indeed scraping")
+        scraper = get_scrapling_scraper()
+        jobs = await scraper.search_jobs(roles, locations, contract_types)
+        # Normalise job_type field using contract detection
+        for job in jobs:
+            if not job.get("job_type"):
+                job["job_type"] = _detect_contract(
+                    job.get("title", ""),
+                    job.get("description_raw", "")[:500],
+                    contract_types,
+                )
+        return jobs
+    except Exception as e:
+        logger.error(f"[scrapling] scraper failed: {e}", exc_info=True)
         return []
 
 
@@ -197,7 +150,7 @@ async def _save_jobs_to_db(
 
 
 async def node_scrape(state: PipelineState) -> dict:
-    """Fetch jobs from LinkedIn/Indeed (jobspy) + France Travail + La Bonne Alternance."""
+    """Fetch jobs from LinkedIn/Indeed (Scrapling) + France Travail + La Bonne Alternance."""
     prefs = state.get("user_preferences", {})
     user_id = uuid.UUID(state["user_id"])
 
@@ -211,9 +164,9 @@ async def node_scrape(state: PipelineState) -> dict:
     wants_alternance = any(c in ("alternance", "stage") for c in [ct.lower() for ct in contract_types])
 
     # Run all scrapers in parallel
-    tasks = [_scrape_jobspy(roles, locations, contract_types)]
+    tasks = [_scrape_scrapling(roles, locations, contract_types)]
     ft_api = get_france_travail_api()
-    tasks.append(ft_api.search_all(roles, locations, contract_types, hours_back=25))
+    tasks.append(ft_api.search_all(roles, locations, contract_types, hours_back=168))  # 7 days
 
     if wants_alternance:
         lba_api = get_bonne_alternance_api()
@@ -222,7 +175,7 @@ async def node_scrape(state: PipelineState) -> dict:
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     combined: list[dict] = []
-    source_names = ["jobspy", "france_travail", "bonne_alternance"]
+    source_names = ["scrapling", "france_travail", "bonne_alternance"]
     for name, result in zip(source_names, results):
         if isinstance(result, list):
             logger.info(f"[scrape] {name}: {len(result)} offres")

@@ -9,7 +9,16 @@ Endpoints:
   DELETE /consultant/conversations/{id}                    — delete conversation
 
 SSE streaming: POST /conversations/{id}/chat returns text/event-stream.
-Use fetch() + ReadableStream on the frontend (EventSource doesn't support POST).
+
+SSE event types:
+  {"chunk": "..."}                          — text token
+  {"event": "tool_start", "tool": "..."}   — tool invocation started
+  {"event": "tool_end", "tool": "...", "result": "..."}  — tool result
+  {"event": "done", "message_id": "..."}   — stream complete
+  {"event": "error", "message": "..."}     — unrecoverable error
+
+user_id is injected server-side into tool calls via RunnableConfig.configurable
+so the LLM never sees or guesses it.
 """
 import json
 import logging
@@ -19,6 +28,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -176,10 +186,16 @@ async def chat_stream(
     """
     Send a user message and stream Dr. Rousseau's reply via Server-Sent Events.
 
+    The user_id is injected into all tool calls via RunnableConfig.configurable
+    so Dr. Rousseau can securely access the user's profile without the LLM
+    ever seeing the user_id in the conversation.
+
     Response format: text/event-stream
-      data: {"chunk": "..."}          — token-by-token text chunks
-      data: {"event": "done", "message_id": "..."}  — stream complete
-      data: {"event": "error", "message": "..."}    — unrecoverable error
+      data: {"chunk": "..."}
+      data: {"event": "tool_start", "tool": "...", "input": {...}}
+      data: {"event": "tool_end", "tool": "...", "result": "..."}
+      data: {"event": "done", "message_id": "..."}
+      data: {"event": "error", "message": "..."}
     """
     # ── Validate conversation ownership ──────────────────────────────────────
     conv = await _get_conv_or_404(conversation_id, current_user.id, db)
@@ -203,6 +219,9 @@ async def chat_stream(
     history = await _load_messages(conversation_id, db)
     lc_messages = _to_langchain_messages(history)
 
+    # Capture user_id as string for injection into tool calls
+    user_id_str = str(current_user.id)
+
     # ── Stream generator ──────────────────────────────────────────────────────
     # Use a separate DB session inside the generator — the DI session above
     # is already committed and will be closed after the route handler returns.
@@ -214,17 +233,23 @@ async def chat_stream(
         full_response = ""
         assistant_msg_id = str(uuid.uuid4())
 
+        # RunnableConfig: inject user_id into all tool calls via configurable
+        config = RunnableConfig(
+            configurable={"user_id": user_id_str},
+        )
+
         async with AsyncSessionLocal() as stream_db:
             try:
                 state = {"messages": lc_messages}
 
-                async for event in graph.astream_events(state, version="v2"):
+                async for event in graph.astream_events(state, config=config, version="v2"):
                     kind = event.get("event", "")
+
+                    # ── Text token from the LLM ───────────────────────────
                     if kind == "on_chat_model_stream":
                         chunk = event["data"].get("chunk")
                         if chunk is None:
                             continue
-                        # Gemini content can be str or list[dict]
                         content = chunk.content
                         if isinstance(content, list):
                             content = "".join(
@@ -234,6 +259,25 @@ async def chat_stream(
                         if content:
                             full_response += content
                             yield f"data: {json.dumps({'chunk': content})}\n\n"
+
+                    # ── Tool invocation started ────────────────────────────
+                    elif kind == "on_tool_start":
+                        tool_name = event.get("name", "")
+                        tool_input = event["data"].get("input", {})
+                        # Strip injected args from what we send to frontend
+                        safe_input = {
+                            k: v for k, v in (tool_input or {}).items()
+                            if k != "user_id"
+                        }
+                        yield f"data: {json.dumps({'event': 'tool_start', 'tool': tool_name, 'input': safe_input})}\n\n"
+
+                    # ── Tool result received ───────────────────────────────
+                    elif kind == "on_tool_end":
+                        tool_name = event.get("name", "")
+                        tool_output = event["data"].get("output", "")
+                        # Truncate large outputs (e.g. full descriptions)
+                        output_str = str(tool_output)[:500] if tool_output else ""
+                        yield f"data: {json.dumps({'event': 'tool_end', 'tool': tool_name, 'result': output_str})}\n\n"
 
                 # Persist assistant message
                 if not full_response:
@@ -258,7 +302,6 @@ async def chat_stream(
                 yield f"data: {json.dumps({'event': 'done', 'message_id': assistant_msg_id})}\n\n"
 
             except RuntimeError as e:
-                # Config errors (missing API key, token budget)
                 logger.error(f"Consultant config error: {e}")
                 await stream_db.rollback()
                 yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
