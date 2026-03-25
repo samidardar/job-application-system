@@ -57,7 +57,7 @@ async def _scrape_jobspy(
             for location in locations[:2]:
                 search_term = f"{role} {contract_types[0] if contract_types else ''}"
                 try:
-                    df = await asyncio.get_event_loop().run_in_executor(
+                    df = await asyncio.get_running_loop().run_in_executor(
                         None,
                         lambda s=search_term, l=location: scrape_jobs(
                             site_name=["linkedin", "indeed"],

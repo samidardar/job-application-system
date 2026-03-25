@@ -428,7 +428,11 @@ async def _process_one(
 
     # Email-only platforms (Lever, Bonne Alternance with contact email)
     if any(p in platform for p in _EMAIL_ONLY_PLATFORMS) or method == "lever_email":
-        sent, result = await _send_lever_email(job, user_info, "", "")
+        sent, result = await _send_lever_email(
+            job, user_info,
+            job.get("cv_path") or "",
+            job.get("ldm_path") or "",
+        )
         if sent:
             app_id = await _create_application(job, user_id, submitted=True, method="email")
             return True, app_id, "email"

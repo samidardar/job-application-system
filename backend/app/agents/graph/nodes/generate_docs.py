@@ -386,6 +386,8 @@ async def _generate_for_job(
     enriched = dict(job)  # type: ignore
     enriched["cv_doc_id"] = str(cv_doc.id)
     enriched["ldm_doc_id"] = str(ldm_doc.id)
+    enriched["cv_path"] = cv_path   # Physical PDF path — consumed by application.py
+    enriched["ldm_path"] = ldm_path  # Physical PDF path — consumed by application.py
     enriched["cv_html"] = cv_result.cv_html
     enriched["ldm_text"] = ldm_result.lettre_text
     enriched["retry_count"] = 0

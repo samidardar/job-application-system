@@ -125,6 +125,7 @@ class ProfileOut(BaseModel):
     experience: list | None
     languages: list | None
     certifications: list | None
+    projects: list | None
     updated_at: datetime
 
     model_config = {"from_attributes": True}

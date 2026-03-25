@@ -78,6 +78,7 @@ async def upload_cv(
     profile.experience = parsed_data.get("experience", [])
     profile.languages = parsed_data.get("languages", [])
     profile.certifications = parsed_data.get("certifications", [])
+    profile.projects = parsed_data.get("projects", [])
 
     # Save document record
     doc = Document(

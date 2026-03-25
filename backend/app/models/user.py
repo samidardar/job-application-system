@@ -65,6 +65,7 @@ class UserProfile(Base):
     experience: Mapped[list | None] = mapped_column(JSONB)
     languages: Mapped[list | None] = mapped_column(JSONB)
     certifications: Mapped[list | None] = mapped_column(JSONB)
+    projects: Mapped[list | None] = mapped_column(JSONB)
 
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

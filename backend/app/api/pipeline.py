@@ -190,7 +190,7 @@ async def stream_pipeline(current_user: User = Depends(get_current_user)):
 
             # Heartbeat interval (seconds) — keeps connection alive through proxies
             heartbeat_interval = 25
-            last_heartbeat = asyncio.get_event_loop().time()
+            last_heartbeat = asyncio.get_running_loop().time()
 
             while True:
                 # Non-blocking check for new message
@@ -206,7 +206,7 @@ async def stream_pipeline(current_user: User = Depends(get_current_user)):
                         pass
 
                 # Send heartbeat every 25s
-                now = asyncio.get_event_loop().time()
+                now = asyncio.get_running_loop().time()
                 if now - last_heartbeat >= heartbeat_interval:
                     yield f"data: {json.dumps({'event': 'heartbeat'})}\n\n"
                     last_heartbeat = now

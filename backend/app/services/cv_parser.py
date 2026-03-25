@@ -23,6 +23,7 @@ class ParsedCVSchema(BaseModel):
     experience: list[dict]
     languages: list[dict]
     certifications: list[str]
+    projects: list[dict]
     summary: str | None
 
 
@@ -41,7 +42,8 @@ class CVParser:
 Sois précis et exhaustif. Si une information n'est pas présente, utilise null ou une liste vide.
 Pour l'expérience professionnelle, extrais: title, company, location, start_date, end_date, duration, bullets (liste de réalisations).
 Pour l'éducation, extrais: degree, school, location, year_start, year_end, gpa (si mentionné).
-Pour les langues: lang, level (ex: "Français - Natif", "Anglais - C1")."""
+Pour les langues: lang, level (ex: "Français - Natif", "Anglais - C1").
+Pour les projets personnels/académiques, extrais: name, description, tech (technologies utilisées), url (lien GitHub/demo si présent), period."""
 
         user = f"""Voici le texte extrait d'un CV. Extrais toutes les informations structurées.
 
