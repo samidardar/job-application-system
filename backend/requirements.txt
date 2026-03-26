@@ -1,13 +1,16 @@
 fastapi==0.110.0
 langgraph>=0.2.50
 langchain-core>=0.3.0
+langchain-anthropic>=0.3.0
 langchain-google-genai>=2.0.7
+langchain-community>=0.3.0
 uvicorn[standard]==0.27.1
 sqlalchemy[asyncio]==2.0.28
 asyncpg==0.29.0
 alembic==1.13.1
 pydantic[email]==2.6.4
 pydantic-settings==2.2.1
+email-validator>=2.1.0
 bcrypt>=4.0.0
 python-multipart==0.0.9
 anthropic>=0.40.0

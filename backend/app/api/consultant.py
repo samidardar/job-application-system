@@ -131,6 +131,7 @@ async def create_conversation(
     db.add(conv)
     await db.flush()
     await db.refresh(conv)
+    await db.commit()
     return conv
 
 
@@ -150,7 +151,11 @@ async def list_conversations(
     return result.scalars().all()
 
 
-@router.get("/conversations/{conversation_id}/messages", response_model=list[MessageOut])
+class MessageListOut(BaseModel):
+    messages: list[MessageOut]
+
+
+@router.get("/conversations/{conversation_id}/messages", response_model=MessageListOut)
 async def get_messages(
     conversation_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -159,7 +164,7 @@ async def get_messages(
     """Get full message history for a conversation."""
     await _get_conv_or_404(conversation_id, current_user.id, db)
     messages = await _load_messages(conversation_id, db)
-    return messages
+    return MessageListOut(messages=messages)
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
@@ -173,6 +178,7 @@ async def delete_conversation(
     await db.execute(
         delete(Conversation).where(Conversation.id == conversation_id)
     )
+    await db.commit()
     # No explicit return — 204 No Content
 
 

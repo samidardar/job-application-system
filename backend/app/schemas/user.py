@@ -60,6 +60,7 @@ class UserOut(BaseModel):
     email: str
     first_name: str
     last_name: str
+    full_name: str
     is_active: bool
     created_at: datetime
 

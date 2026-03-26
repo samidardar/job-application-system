@@ -93,9 +93,19 @@ async def upload_cv(
     db.add(doc)
 
     await db.commit()
+    await db.refresh(profile)
 
     return {
-        "message": "CV uploaded and parsed successfully",
+        "message": "CV processed",
+        "profile": {
+            "skills_technical": profile.skills_technical or [],
+            "skills_soft": profile.skills_soft or [],
+            "education": profile.education or [],
+            "experience": profile.experience or [],
+            "languages": profile.languages or [],
+            "certifications": profile.certifications or [],
+            "projects": profile.projects or [],
+        },
         "file_name": file_name,
         "parsed_sections": list(parsed_data.keys()),
         "skills_count": len(profile.skills_technical or []),

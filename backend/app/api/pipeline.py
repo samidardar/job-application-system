@@ -97,9 +97,11 @@ async def trigger_pipeline(
     await db.commit()
 
     return PipelineTriggerResponse(
+        run_id=pipeline_run.id,
+        status="started",
+        message="Pipeline started. Use /pipeline/stream for live updates.",
         pipeline_run_id=pipeline_run.id,
         celery_task_id=task.id,
-        message="Pipeline started. Use /pipeline/stream for live updates.",
     )
 
 

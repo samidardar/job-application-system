@@ -39,6 +39,10 @@ class PipelineRunOut(BaseModel):
 
 
 class PipelineTriggerResponse(BaseModel):
-    pipeline_run_id: uuid.UUID
-    celery_task_id: str
+    # Primary fields expected by the frontend
+    run_id: uuid.UUID
+    status: str = "started"
     message: str
+    # Additional context fields
+    pipeline_run_id: uuid.UUID | None = None
+    celery_task_id: str | None = None

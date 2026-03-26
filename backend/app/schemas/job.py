@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel
 from app.models.job import JobPlatformEnum, JobTypeEnum, JobStatusEnum
+from typing import List
 
 
 class JobOut(BaseModel):
@@ -42,9 +43,28 @@ class JobListOut(BaseModel):
     status: JobStatusEnum
     posted_at: datetime | None
     scraped_at: datetime
+    # Frontend-friendly aliases
+    application_url: str | None = None
+    description_clean: str | None = None
+
+    @property
+    def url(self) -> str | None:
+        return self.application_url
+
+    @property
+    def description(self) -> str | None:
+        return self.description_clean
 
     model_config = {"from_attributes": True}
 
 
 class JobStatusUpdate(BaseModel):
     status: JobStatusEnum
+
+
+class JobListResponse(BaseModel):
+    """Paginated job list response."""
+    items: List[JobListOut]
+    total: int
+    page: int
+    size: int

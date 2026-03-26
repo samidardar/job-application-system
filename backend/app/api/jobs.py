@@ -1,36 +1,46 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.job import Job, JobStatusEnum, JobPlatformEnum
-from app.schemas.job import JobOut, JobListOut, JobStatusUpdate
+from app.schemas.job import JobOut, JobListOut, JobStatusUpdate, JobListResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
-@router.get("", response_model=list[JobListOut])
+@router.get("", response_model=JobListResponse)
 async def list_jobs(
     status: JobStatusEnum | None = Query(None),
     platform: JobPlatformEnum | None = Query(None),
     score_min: int | None = Query(None, ge=0, le=100),
-    limit: int = Query(50, le=200),
-    offset: int = Query(0),
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Job).where(Job.user_id == current_user.id)
+    offset = (page - 1) * size
+    base_q = select(Job).where(Job.user_id == current_user.id)
     if status:
-        q = q.where(Job.status == status)
+        base_q = base_q.where(Job.status == status)
     if platform:
-        q = q.where(Job.platform == platform)
+        base_q = base_q.where(Job.platform == platform)
     if score_min is not None:
-        q = q.where(Job.match_score >= score_min)
-    q = q.order_by(Job.scraped_at.desc()).limit(limit).offset(offset)
+        base_q = base_q.where(Job.match_score >= score_min)
+
+    # Count total for pagination
+    count_q = select(func.count()).select_from(base_q.subquery())
+    total_result = await db.execute(count_q)
+    total = total_result.scalar_one()
+
+    # Fetch page
+    q = base_q.order_by(Job.scraped_at.desc()).limit(size).offset(offset)
     result = await db.execute(q)
-    return result.scalars().all()
+    items = result.scalars().all()
+
+    return JobListResponse(items=list(items), total=total, page=page, size=size)
 
 
 @router.get("/{job_id}", response_model=JobOut)
