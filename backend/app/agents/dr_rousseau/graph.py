@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -40,12 +40,12 @@ def make_graph(
     tools = make_tools(db, user_id)
     tool_node = ToolNode(tools)
 
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-6",
-        api_key=settings.anthropic_api_key,
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash-preview-04-17",
+        google_api_key=settings.gemini_api_key,
         streaming=True,
         temperature=0.3,
-        max_tokens=4096,
+        max_output_tokens=4096,
     ).bind_tools(tools)
 
     # ── Nodes ─────────────────────────────────────────────────────────────

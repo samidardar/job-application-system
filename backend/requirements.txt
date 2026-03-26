@@ -1,9 +1,10 @@
 fastapi==0.110.0
 langgraph>=0.2.50
 langchain-core>=0.3.0
-langchain-anthropic>=0.3.0
 langchain-google-genai>=2.0.7
 langchain-community>=0.3.0
+google-generativeai>=0.8.0
+google-api-core>=2.19.0
 uvicorn[standard]==0.27.1
 sqlalchemy[asyncio]==2.0.28
 asyncpg==0.29.0
@@ -13,7 +14,6 @@ pydantic-settings==2.2.1
 email-validator>=2.1.0
 bcrypt>=4.0.0
 python-multipart==0.0.9
-anthropic>=0.40.0
 celery[redis]==5.3.6
 redis==5.0.3
 celery-redbeat>=2.2.0

@@ -203,13 +203,11 @@ async def get_career_recommendations(
         JSON with: certifications (list), projects (list), reasoning
     """
     try:
-        import anthropic
+        from app.services.claude_service import get_claude_service
 
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-
-        prompt = f"""Tu es un expert en développement de carrière pour le marché français.
-
-Profil de l'utilisateur :
+        gemini = get_claude_service()
+        system = "Tu es un expert en développement de carrière pour le marché français. Réponds toujours en JSON valide uniquement."
+        prompt = f"""Profil de l'utilisateur :
 - Domaine cible : {domain}
 - Type de contrat recherché : {contract_type}
 - Compétences actuelles : {current_skills}
@@ -250,19 +248,12 @@ Réponds en JSON valide avec cette structure exacte :
   "reasoning": "..."
 }}"""
 
-        message = await client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        content = message.content[0].text if message.content else "{}"
+        content, _, _ = await gemini.complete_text(system=system, user=prompt, max_tokens=2000)
 
-        # Validate JSON
         try:
             parsed = json.loads(content)
             return json.dumps(parsed, ensure_ascii=False, indent=2)
         except json.JSONDecodeError:
-            # Extract JSON block if wrapped in markdown
             import re
             match = re.search(r"\{[\s\S]+\}", content)
             if match:
@@ -297,7 +288,6 @@ async def generate_cv_and_ldm(
         keywords_injected, changes_summary
     """
     try:
-        import anthropic
         from sqlalchemy import select
         from app.database import AsyncSessionLocal
         from app.models.user import User, UserProfile
@@ -320,11 +310,11 @@ async def generate_cv_and_ldm(
                 "ldm_download_url": None,
             })
 
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        from app.services.claude_service import get_claude_service
+        gemini = get_claude_service()
 
-        prompt = f"""Tu es un expert en optimisation de candidatures pour le marché français.
-
-PROFIL DU CANDIDAT :
+        system = "Tu es un expert en optimisation de candidatures pour le marché français. Réponds uniquement en JSON valide."
+        prompt = f"""PROFIL DU CANDIDAT :
 Nom : {user.full_name}
 CV actuel :
 {cv_text[:3000]}
@@ -349,17 +339,12 @@ JSON attendu :
   "cv_html": "<!DOCTYPE html>...",
   "ldm_html": "<p>...",
   "ldm_text": "...",
-  "ats_score_estimate": 0-100,
+  "ats_score_estimate": 0,
   "keywords_injected": ["..."],
   "changes_summary": ["..."]
 }}"""
 
-        message = await client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=4000,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        content = message.content[0].text if message.content else "{}"
+        content, _, _ = await gemini.complete_text(system=system, user=prompt, max_tokens=4000)
 
         try:
             result = json.loads(content)

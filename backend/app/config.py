@@ -39,20 +39,6 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY too short (min 32 chars)")
         return v
 
-    # Anthropic — Claude Haiku 4.5 (cheapest, ~$0.08/MTok input)
-    anthropic_api_key: str = ""
-
-    @field_validator("anthropic_api_key")
-    @classmethod
-    def anthropic_key_required_in_production(cls, v: str) -> str:
-        # Fail fast: don't let pipelines run for hours before hitting a missing key
-        import os
-        env = os.environ.get("ENVIRONMENT", "development")
-        if not v and env == "production":
-            print("FATAL: ANTHROPIC_API_KEY is required in production", file=sys.stderr)
-            raise ValueError("ANTHROPIC_API_KEY must be set in production")
-        return v
-
     # CORS — comma-separated list of allowed origins
     # Default allows local dev and the production Lovable frontend.
     # Override in .env: ALLOWED_ORIGINS=https://yourdomain.com
@@ -61,9 +47,19 @@ class Settings(BaseSettings):
         "https://boost-your-chance.lovable.app"
     )
 
-    # Gemini — Dr. Rousseau career consultant chatbot (gemini-2.5-flash-preview-04-17)
+    # Gemini — all AI features (consultant + CV/LDM generation + matching)
     # Get key at https://aistudio.google.com/app/apikey — free tier available
     gemini_api_key: str = ""
+
+    @field_validator("gemini_api_key")
+    @classmethod
+    def gemini_key_required_in_production(cls, v: str) -> str:
+        import os
+        env = os.environ.get("ENVIRONMENT", "development")
+        if not v and env == "production":
+            print("FATAL: GEMINI_API_KEY is required in production", file=sys.stderr)
+            raise ValueError("GEMINI_API_KEY must be set in production")
+        return v
 
     # France Travail API (ex Pôle Emploi) — https://francetravail.io/data/api
     france_travail_client_id: str = ""
@@ -83,10 +79,9 @@ class Settings(BaseSettings):
     default_daily_application_limit: int = 20
     pipeline_hour_utc: int = 7  # 8h00 Paris = 7h00 UTC
 
-    # Cost control — max Claude tokens per day across all users
-    # Haiku: ~$0.08/MTok input, $0.25/MTok output
-    # 5M tokens ≈ $1.25/day. Raise in production as needed.
-    claude_daily_token_limit: int = 5_000_000
+    # Cost control — max Gemini tokens per day across all users
+    # Gemini 2.5 Flash: free tier 1M tokens/day, paid ~$0.15/MTok input
+    gemini_daily_token_limit: int = 5_000_000
 
 
 @lru_cache
