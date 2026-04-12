@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_query_or_bearer
 from app.models.user import User
 from app.models.agent_run import PipelineRun, AgentStatusEnum
 from app.schemas.agent import PipelineRunOut, PipelineTriggerResponse
@@ -164,7 +164,7 @@ async def get_pipeline_run(
 
 
 @router.get("/stream")
-async def stream_pipeline(current_user: User = Depends(get_current_user)):
+async def stream_pipeline(current_user: User = Depends(get_current_user_query_or_bearer)):
     """Server-Sent Events endpoint for live pipeline status.
 
     Uses Redis pub/sub so events work correctly across multiple uvicorn workers.

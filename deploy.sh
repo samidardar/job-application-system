@@ -113,9 +113,9 @@ echo ""
 echo "[6/6] Deploying frontend to Vercel..."
 cd "$REPO_ROOT/frontend"
 
-# Set env var and deploy
+# Vite embeds VITE_API_URL at build time — pass as env var
 VERCEL_ARGS="--token $VERCEL_TOKEN --yes --prod"
-[ -n "$BACKEND_URL" ] && VERCEL_ARGS="$VERCEL_ARGS -e NEXT_PUBLIC_API_URL=$BACKEND_URL"
+[ -n "$BACKEND_URL" ] && VERCEL_ARGS="$VERCEL_ARGS -e VITE_API_URL=$BACKEND_URL"
 
 FRONTEND_URL=$(vercel $VERCEL_ARGS 2>&1 | grep -o 'https://[^ ]*\.vercel\.app' | tail -1 || echo "")
 

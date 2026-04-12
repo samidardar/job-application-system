@@ -1,30 +1,33 @@
-# ── Stage 1: Build ───────────────────────────────────────────────────────────
+# ── Build stage ────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install deps separately so layer is cached when only source changes
-COPY package.json package-lock.json* ./
-RUN npm ci --frozen-lockfile
+# Install dependencies first (layer-cached unless package.json changes)
+COPY package*.json ./
+RUN npm ci --ignore-scripts
 
+# Copy source and build
 COPY . .
 
-# Build production bundle (optimized, no hot-reload, no webpack watchers)
+# VITE_API_URL is passed as a build arg so it gets embedded in the JS bundle
+ARG VITE_API_URL=http://localhost:8000
+ENV VITE_API_URL=${VITE_API_URL}
+
 RUN npm run build
 
-# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+# ── Production stage: nginx to serve static files ─────────────────────────────
+FROM nginx:1.27-alpine AS runner
 
-WORKDIR /app
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
 
-ENV NODE_ENV=production
+# Custom nginx config: serve SPA, proxy /api to backend
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Only copy what Next.js needs to run in production
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Copy built assets from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-EXPOSE 3000
+EXPOSE 80
 
-# Run the production server (not `npm run dev`)
-CMD ["node", "server.js"]
+CMD ["nginx", "-g", "daemon off;"]

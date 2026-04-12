@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.config import settings
 from app.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_query_or_bearer
 from app.models.user import User
 from app.models.document import Document
 from app.schemas.document import DocumentOut
@@ -50,7 +50,7 @@ async def get_document(
 @router.get("/{doc_id}/download")
 async def download_document(
     doc_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_query_or_bearer),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(

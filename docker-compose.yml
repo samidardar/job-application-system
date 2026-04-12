@@ -137,24 +137,27 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # VITE_API_URL is embedded in the JS bundle at build time
+        # In production, override with your real backend URL:
+        #   docker-compose build --build-arg VITE_API_URL=https://api.yourdomain.com frontend
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     restart: unless-stopped
-    environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
-      - "3000:3000"
-    # PRODUCTION: no source bind mounts
+      - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 15s
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 128M
 
 volumes:
   postgres_data:
